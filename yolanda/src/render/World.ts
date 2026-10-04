@@ -378,6 +378,34 @@ export class World {
     }
   }
 
+  private faded = new Map<THREE.Mesh, THREE.Material | THREE.Material[]>();
+
+  /** Cutaway: fade stations that stand between the camera and `focusId`. */
+  setCutaway(focusId: string | null): void {
+    // restore everything first
+    for (const [m, orig] of this.faded) m.material = orig;
+    this.faded.clear();
+    if (!focusId) return;
+    const f = this.stations.get(focusId);
+    if (!f) return;
+    const cy = Math.cos(this.env.camYaw), sy = Math.sin(this.env.camYaw);
+    const uOf = (x: number, z: number) => x * cy - z * sy;
+    const vOf = (x: number, z: number) => x * sy + z * cy;
+    const fu = uOf(f.center.x, f.center.z), fv = vOf(f.center.x, f.center.z);
+    for (const sv of this.stations.values()) {
+      if (sv === f) continue;
+      const u = uOf(sv.center.x, sv.center.z), v = vOf(sv.center.x, sv.center.z);
+      if (v <= fv || v - fv > 4.5 || Math.abs(u - fu) > 2.4) continue;
+      sv.model.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh) return;
+        this.faded.set(m, m.material);
+        const fade = (mat: THREE.Material) => { const c = mat.clone(); c.transparent = true; c.opacity = 0.18; c.depthWrite = false; return c; };
+        m.material = Array.isArray(m.material) ? m.material.map(fade) : fade(m.material);
+      });
+    }
+  }
+
   /** Raycast a normalized device coordinate against stations then floor. */
   pick(ndc: THREE.Vector2, camera: THREE.Camera): { station?: string; floor?: Vec2 } | null {
     const ray = new THREE.Raycaster();
@@ -417,6 +445,7 @@ export class World {
   }
 
   dispose(): void {
+    this.faded.clear();
     const lvl = this.scene.getObjectByName('level');
     if (lvl) this.scene.remove(lvl);
     this.showNavDebug(false);

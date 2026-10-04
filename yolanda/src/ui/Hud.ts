@@ -156,11 +156,17 @@ export class Hud implements GameUI {
     this.closeSheet();
     this.bottom.classList.add('hidden');
     this.hintEl?.classList.add('hidden');
-    const s = h('div', 'sheet prep');
+    const s = h('div', 'sheet prep prep2');
     this.sheet = s;
     this.el.append(s);
+    // open the drawer that holds something still needed
+    const wanted = this.g.glowItems();
+    const first = DRAWERS.findIndex((d) => Object.values(ITEMS).some((it) => it.drawer === d.id && wanted.has(it.id)));
+    this.drawerTab = first >= 0 ? first : 0;
     this.renderPrep();
   }
+
+  private drawerTab = 0;
 
   private renderPrep(): void {
     const s = this.sheet;
@@ -168,37 +174,43 @@ export class Hud implements GameUI {
     const g = this.g;
     const c = g.focusCase();
     const need = g.neededItems();
-    const glow = g.level.glowRequired ? g.glowItems() : new Set<string>();
+    const wanted = g.glowItems();
+    const glow = g.level.glowRequired ? wanted : new Set<string>();
     const planHtml = g.ts.cases.filter((x) => x.phase !== 'done' && x.arrived).flatMap((cc) => cc.plan.map((p, i) => {
       const ok = p.items.every((id) => g.inv.count(id) > 0 || !need.has(id));
       const isNew = i >= cc.template.plan.length;
       return `<span class="p ${ok ? 'ok' : ''} ${isNew ? 'new' : ''}">${ok ? ICON.check : ''}${p.label}</span>`;
     })).join('');
-    let html = `<h2>${ICON.cart}Supply Cart</h2><div class="sub">Case plan for ${c.patient.name} — fill the tray, then go.</div><div class="plan">${planHtml}</div>`;
-    for (const d of DRAWERS) {
-      const items = Object.values(ITEMS).filter((it) => it.drawer === d.id);
-      html += `<div class="drawer"><h5><i style="background:${d.color}"></i>${d.name}</h5><div class="items">`;
-      for (const it of items) {
-        const cnt = g.inv.count(it.id);
-        const left = g.stockOf(it.id);
-        const stockTag = left === Infinity ? '' : `<span class="stock ${left <= 0 ? 'out' : ''}">${left <= 0 ? 'OUT' : `${left} left`}</span>`;
-        html += `<div class="item ${glow.has(it.id) ? 'glow' : ''} ${left <= 0 ? 'empty' : ''}" data-id="${it.id}">${itemIcon(it)}<span>${it.name}</span>${cnt ? `<span class="cnt">${cnt}</span>` : ''}${stockTag}</div>`;
-      }
-      html += '</div></div>';
+    g.prepDrawer = this.drawerTab;
+    let html = `<div class="pp-head"><div><b>SUPPLY CART</b><span>Case plan · ${c.patient.name}</span></div><div class="plan">${planHtml}</div></div>`;
+    html += '<div class="pp-tabs">' + DRAWERS.map((d, i) => {
+      const hasNeed = Object.values(ITEMS).some((it) => it.drawer === d.id && wanted.has(it.id));
+      return `<button class="pp-tab ${i === this.drawerTab ? 'on' : ''}" data-tab="${i}"><i style="background:${d.color}"></i>${d.name}${hasNeed && g.tutorialOn ? '<em></em>' : ''}</button>`;
+    }).join('') + '</div>';
+    const d = DRAWERS[this.drawerTab];
+    html += '<div class="pp-items">';
+    for (const it of Object.values(ITEMS).filter((x) => x.drawer === d.id)) {
+      const cnt = g.inv.count(it.id);
+      const left = g.stockOf(it.id);
+      const stockTag = left === Infinity ? '' : `<span class="stock ${left <= 0 ? 'out' : ''}">${left <= 0 ? 'OUT' : `${left} left`}</span>`;
+      html += `<button class="pp-item ${glow.has(it.id) ? 'glow' : ''} ${left <= 0 ? 'empty' : ''} ${cnt ? 'taken' : ''}" data-id="${it.id}">${cnt ? `<span class="cnt">${ICON.check}</span>` : ''}${itemIcon(it)}<span class="nm">${it.name}</span>${stockTag}</button>`;
     }
-    html += '<div class="tray-mini"><div class="lab">Prep Tray<small>tap to put back</small></div><div class="slots">';
+    html += '</div><div class="pp-foot"><div class="pp-tray">';
     g.inv.slots.forEach((id, i) => {
-      html += id ? `<div class="slot full" data-slot="${i}">${itemIcon(ITEMS[id])}${ITEMS[id].short}</div>` : '<div class="slot">empty</div>';
+      html += id ? `<button class="ts full" data-slot="${i}" title="Put back">${itemIcon(ITEMS[id])}<span>${ITEMS[id].short}</span></button>` : `<div class="ts"><span class="n">${i + 1}</span></div>`;
     });
-    html += '</div></div><button class="big-btn">Done — back to the room</button>';
+    html += `</div><button class="big-btn pp-done">Done</button></div><div class="pp-note">Tap an item to add it to the tray · tap a tray item to put it back</div>`;
     s.innerHTML = html;
-    s.querySelectorAll<HTMLElement>('.item').forEach((el) => {
+    s.querySelectorAll<HTMLElement>('.pp-tab').forEach((el) => {
+      el.onclick = () => { this.drawerTab = Number(el.dataset.tab); this.g.audio.play('drawer'); this.renderPrep(); };
+    });
+    s.querySelectorAll<HTMLElement>('.pp-item').forEach((el) => {
       el.onclick = () => { if (g.pickItem(el.dataset.id!)) this.renderPrep(); };
     });
-    s.querySelectorAll<HTMLElement>('.slot.full').forEach((el) => {
+    s.querySelectorAll<HTMLElement>('.ts.full').forEach((el) => {
       el.onclick = () => { g.returnItem(Number(el.dataset.slot)); this.renderPrep(); };
     });
-    (s.querySelector('.big-btn') as HTMLButtonElement).onclick = () => g.closePrep();
+    (s.querySelector('.pp-done') as HTMLButtonElement).onclick = () => g.closePrep();
   }
 
   closePrep(): void {

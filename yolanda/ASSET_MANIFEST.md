@@ -30,6 +30,24 @@ network settings (or drop files into `public/models/`), load with `GLTFLoader`, 
 re-material each mesh with `mat()` from `palette.ts` so it matches the palette. Add
 one row per file below.
 
+## Planned external packs (waiting on downloads)
+
+These were chosen for the next art pass. None are in the build yet because the
+environment cannot reach their hosts. Licenses will be confirmed from each download.
+
+| Pack | Use | Expected license |
+|---|---|---|
+| Atomic Realm Hospital Assets (free tier) | beds, machines, cupboards, lights, walls | check free-tier terms |
+| Madduck Modular Hospital Environment | room shell, modular walls/props | free/name-your-price, commercial + modification allowed |
+| GRADD Hospital Room (Poly Pizza) | filler props | CC BY (credit required) |
+| Quaternius Ultimate House Interior | desks, chairs, shelves, plants, lights | CC0 |
+| Quaternius Modular Women (+ men/medics) | Yolanda, staff, patients, animations | CC0 |
+| SideQuest Sci-Fi Lab & Medical Props | base geometry for SedaPrep / ScopeAir / AirReady | CC0 |
+
+Import plan: convert to GLB, re-material every mesh with `mat()` from
+`src/render/palette.ts`, and keep station footprints from `src/data/stations.ts`
+so gameplay and navigation don't change.
+
 ## Procedural assets in use
 
 | Asset | Built in | Approx. tris | Used in |

@@ -89,6 +89,8 @@ export class Game {
   private lastHint: string | null = null;
   private exitAnims: { obj: THREE.Object3D; t: number; from: THREE.Vector3; to: THREE.Vector3 }[] = [];
   focusStation: string | null = null;
+  /** Which supply drawer is open in the prep close-up (0 = top). */
+  prepDrawer = 0;
   suggestion: Suggestion = { task: null, station: null, text: '' };
   private suggestT = 0;
   /** Limited cart stock (only items listed in level.stock are limited). */
@@ -391,6 +393,7 @@ export class Game {
     const sv = this.world.stations.get('supplies')!;
     this.world.yolanda.root.rotation.y = sv.face;
     this.cam.setMode('prep');
+    this.world.setCutaway('supplies');
     this.metrics.drawerTrips++;
     this.pickedThisVisit = [];
     this.audio.play('drawer');
@@ -439,6 +442,7 @@ export class Game {
     this.y = { k: 'idle' };
     this.world.yolanda.anim = 'idle';
     this.cam.setMode(this.ts.anyActive() ? 'active' : 'room');
+    this.world.setCutaway(null);
     this.audio.play('drawer');
     this.ui.closePrep();
   }
@@ -606,7 +610,7 @@ export class Game {
       this.queue.items = this.queue.items.filter((a) => this.inZone(this.world.stations.get(a.stationId)!.stand));
       const proc = this.world.npcs.get(`proc-${c.id}`);
       if (proc) proc.anim = 'interact';
-      this.ui.toast('Sedation started — procedure underway', 'good');
+      if (!this.tutorialOn) this.ui.toast('Sedation started — procedure underway', 'good');
     } else if (c.phase === 'recovery') {
       // resolve leftover alerts as missed
       for (const t of this.ts.list()) {
@@ -617,7 +621,7 @@ export class Game {
       if (proc) {
         this.walk(proc, this.world.env.door, 2.4, () => { proc.root.visible = false; });
       }
-      this.ui.toast('Procedure complete — time to wake up', 'good');
+      if (!this.tutorialOn) this.ui.toast('Procedure complete — time to wake up', 'good');
     } else if (c.phase === 'done') {
       // bed leaves with the PACU nurse
       const bed = this.beds.get(c.id)!;
@@ -983,7 +987,7 @@ export class Game {
     // supply drawers open while in prep
     const sup = w.stations.get('supplies');
     sup?.model.userData.drawers?.forEach((d, i) => {
-      const open = this.mode === 'prep' ? 0.55 - i * 0.08 : 0;
+      const open = this.mode === 'prep' && i === this.prepDrawer ? 0.6 : 0;
       d.position.z += (d.userData.closedZ + open - d.position.z) * Math.min(1, dtReal * 7);
     });
     // patient zone

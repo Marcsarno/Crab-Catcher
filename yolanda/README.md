@@ -18,16 +18,22 @@ npm run build:single # one self-contained HTML file → dist-single/index.html
 npm run playtest     # headless bot plays Level 1 end to end (needs `npm run dev` running)
 node scripts/playtest.mjs L2 --speed=4 --shots   # other levels, phase screenshots in shots/
 node scripts/playtest.mjs L1 --lazy              # naive player, to check scoring spread
+node scripts/playtest.mjs L1 --follow            # only follows the on-screen next-step hint
 ```
 
 ## How to play
 
-- **Tap a station** to send Yolanda there. Tap several to queue a route.
-  **Long-press** a station to make it the very next stop. **Tap the floor** to redirect.
-  Tap a route chip to cancel it.
-- The **Prep Tray** holds 4 hand items. Fill it at the **Supplies** cart (prep close-up).
+- **Tap a station** to send Yolanda there. Tap several to plan a route (numbers
+  appear on the station tags). **Tap a numbered station again** to take it off
+  the route. **Long-press** a station to make it the very next stop. **Tap the
+  floor** to redirect.
+- The **task card** (bottom left) always shows the next good step and why. A
+  bouncing yellow arrow marks that station. Turn hints off in Settings for a
+  harder game.
+- The **Prep Tray** holds 4 hand items. Fill it at the **Supplies** cart: one
+  drawer at a time, tap an item to take it, tap a tray slot to put it back.
 - Machines run on their own. Start them, walk away, and come back when they show **READY**.
-- Once sedation begins, Yolanda stays in the **Patient Zone**. Answer alerts, document,
+- Once sedation begins, Yolanda stays in the **patient zone**. Answer alerts, document,
   and request the PACU bed early. In later cases, use **Team** to delegate.
 - Finish with the patient handoff. You're scored on Safety, Anticipation, Efficiency,
   Patient Care and Team Flow, not on raw speed.

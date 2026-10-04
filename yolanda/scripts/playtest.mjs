@@ -6,7 +6,8 @@ import { chromium } from 'playwright-core';
 const levelId = process.argv.find((a) => /^L\d$/.test(a)) ?? 'L1';
 const speed = Number((process.argv.find((a) => a.startsWith('--speed=')) ?? '--speed=4').split('=')[1]);
 const shots = process.argv.includes('--shots');
-const lazy = process.argv.includes('--lazy'); // naive player: quick tasks first, never pages or delegates
+const lazy = process.argv.includes('--lazy');
+const follow = process.argv.includes('--follow'); // only does what the on-screen next-step suggestion says // naive player: quick tasks first, never pages or delegates
 const url = process.env.URL ?? 'http://localhost:5173/';
 
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
@@ -25,7 +26,7 @@ await page.evaluate(([id, sp]) => {
 }, [levelId, speed]);
 
 // The bot runs inside the page so it reacts every frame-ish.
-const botPromise = page.evaluate(async (lazy) => {
+const botPromise = page.evaluate(async ([lazy, follow]) => {
   const app = window.__yolanda;
   const log = [];
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -69,6 +70,14 @@ const botPromise = page.evaluate(async (lazy) => {
       await sleep(50);
       continue;
     }
+    if (follow && game.mode === 'room' && game.y.k === 'idle' && game.queue.length === 0) {
+      const sg = game.suggestNext();
+      if (sg.page) { game.page(game.focusCase()); say('follow: page'); }
+      else if (sg.station) { say(`follow → ${sg.station}: ${sg.text}`); game.tapStation(sg.station); }
+      else for (const d of game.availableDelegations()) { game.delegate(d); say(`follow: delegate ${d.id}`); }
+      await sleep(40);
+      continue;
+    }
     if (game.mode === 'room' && (game.y.k === 'idle') && game.queue.length === 0) {
       const fc = game.focusCase();
       if (!lazy && game.canPage(fc)) { game.page(fc); say('page proceduralist'); }
@@ -88,7 +97,7 @@ const botPromise = page.evaluate(async (lazy) => {
     await sleep(40);
   }
   return { log, mode: g().mode, result: g().result, metrics: g().metrics, time: g().ts.time };
-}, lazy);
+}, [lazy, follow]);
 
 // Snapshot each phase change (and a few moments inside it) while the bot plays.
 if (shots) {
@@ -100,14 +109,14 @@ if (shots) {
     if (st.key !== lastKey) {
       lastKey = st.key;
       await page.waitForTimeout(1800);
-      await page.screenshot({ path: `shots/pt-${levelId}-${String(n++).padStart(2, '0')}-${st.key}.png` });
+      await page.screenshot({ path: `${process.env.OUT ?? 'shots'}/pt-${levelId}-${String(n++).padStart(2, '0')}-${st.key}.png` });
     }
     if (st.mode === 'results') break;
     await page.waitForTimeout(300);
   }
 }
 const result = await botPromise;
-if (shots) await page.screenshot({ path: `shots/playtest-${levelId}-end.png` });
+if (shots) await page.screenshot({ path: `${process.env.OUT ?? 'shots'}/playtest-${levelId}-end.png` });
 console.log(result.log.join('\n'));
 console.log('\nMODE:', result.mode, ' sim time:', result.time.toFixed(1), 's');
 console.log('METRICS:', JSON.stringify(result.metrics));
