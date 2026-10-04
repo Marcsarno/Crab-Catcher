@@ -47,9 +47,7 @@ export class Screens {
       if (unlocked) b.onclick = () => play(l);
       list.append(b);
     }
-    for (const u of UPCOMING) {
-      list.append(h('div', 'lvl soon', `<span class="num">${u.n}</span><span class="nm">${u.t}<small>Coming soon · ${u.s}</small></span>`));
-    }
+    list.append(h('div', 'soon-line', `Coming on later shifts: ${UPCOMING.map((u) => u.t).join(' · ')}`));
     const row = h('div', 'menu-row');
     const set = h('button', 'big-btn ghost', 'Settings');
     set.onclick = settings;

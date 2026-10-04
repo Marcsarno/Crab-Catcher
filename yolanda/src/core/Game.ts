@@ -23,7 +23,7 @@ type YState =
   | { k: 'work'; task: TaskRT; station: string }
   | { k: 'collect'; task: TaskRT; t: number; station: string }
   | { k: 'wait'; task: TaskRT | null; station: string; why: 'machine' | 'proceduralist' }
-  | { k: 'transport'; c: CaseRT; task: TaskRT; path: Vec2[]; i: number; bed: THREE.Object3D }
+  | { k: 'transport'; c: CaseRT; task: TaskRT; path: Vec2[]; i: number; bed: THREE.Object3D; dest: StationView | null }
   | { k: 'overlay' };
 
 interface Walker {
@@ -81,6 +81,8 @@ export class Game {
   private lastHint: string | null = null;
   private exitAnims: { obj: THREE.Object3D; t: number; from: THREE.Vector3; to: THREE.Vector3 }[] = [];
   focusStation: string | null = null;
+  /** Limited cart stock (only items listed in level.stock are limited). */
+  readonly stock = new Map<string, number>();
   private eventBeepT = 0;
 
   constructor(
@@ -95,6 +97,7 @@ export class Game {
     const env = ENVIRONMENTS[level.environmentId];
     world.build(env, level);
     this.ts = new TaskSystem(level);
+    for (const [id, n] of Object.entries(level.stock ?? {})) this.stock.set(id, n);
     this.setupCamera();
 
     // Yolanda starts at the supply cart: every case begins with the prep close-up.
@@ -104,7 +107,7 @@ export class Game {
 
     // patients onto their beds
     for (const c of this.ts.cases) {
-      const bay = world.stations.get(c.patient.bay)!;
+      const bay = world.stations.get(c.patient.preopBay ?? c.patient.bay)!;
       const pr = world.patients.get(c.id)!;
       bay.model.userData.patientMount!.add(pr.root);
       pr.state = c.patient.anxious ? 'anxious' : 'awake';
@@ -158,23 +161,23 @@ export class Game {
     ];
     // margins: [left, right, bottom, top] in NDC — leave room for the top bar and Prep Tray
     const q = new URLSearchParams(location.search);
-    const ryaw = Number(q.get('yaw') ?? 0), rpitch = Number(q.get('pitch') ?? 0.98);
-    this.cam.define('room', room, ryaw, rpitch, [0.0, 0.0, 0.34, 0.2]);
+    const ryaw = Number(q.get('yaw') ?? 0), rpitch = Number(q.get('pitch') ?? 0.94);
+    this.cam.define('room', room, ryaw, rpitch, [-0.05, -0.05, 0.27, 0.25]);
     const z = env.patientZone;
     const zone = [
       new THREE.Vector3(z.x0, 0, z.z0), new THREE.Vector3(z.x1, 0, z.z0), new THREE.Vector3(z.x0, 0, z.z1), new THREE.Vector3(z.x1, 0, z.z1),
       new THREE.Vector3(z.x0, 2.4, z.z0), new THREE.Vector3(z.x1, 2.6, z.z0),
     ];
-    this.cam.define('active', zone, 0, 0.92, [0.04, 0.04, 0.5, 0.3]);
+    this.cam.define('active', zone, 0, 0.9, [0.1, 0.1, 0.38, 0.46]);
     const sup = this.world.stations.get('supplies')!;
     const c = sup.center;
     const frontYaw = (sup.rot * Math.PI) / 2;
-    const yaw = frontYaw + 0.62; // look at the cart's front, from the side Yolanda is not standing on
+    const yaw = frontYaw + 0.5; // look at the cart's front, from the side Yolanda is not standing on
     const prepPts = [
-      new THREE.Vector3(c.x, 0.2, c.z - 1.0), new THREE.Vector3(c.x, 0.2, c.z + 1.0), new THREE.Vector3(c.x, 1.5, c.z - 1.0), new THREE.Vector3(c.x, 1.5, c.z + 1.0),
-      new THREE.Vector3(sup.stand.x, 1.8, sup.stand.z),
+      new THREE.Vector3(c.x, 0.1, c.z - 0.95), new THREE.Vector3(c.x, 0.1, c.z + 0.95), new THREE.Vector3(c.x, 1.5, c.z - 0.95), new THREE.Vector3(c.x, 1.5, c.z + 0.95),
+      new THREE.Vector3(sup.stand.x, 1.9, sup.stand.z),
     ];
-    this.cam.define('prep', prepPts, yaw, 0.6, [0.1, 0.1, 1.1, 0.22]);
+    this.cam.define('prep', prepPts, yaw, 0.5, [0.02, 0.02, 1.12, 0.24]);
     this.cam.setMode('prep', true);
   }
 
@@ -307,6 +310,7 @@ export class Game {
         const t = action.task;
         if (t.def.special === 'transport') { this.beginTransport(t); return; }
         if (t.def.special === 'handoff') { this.beginHandoff(t); return; }
+        if (t.def.special === 'moveBed') { this.beginTransport(t); return; }
         this.ts.start(t, 'yolanda', this.inv);
         if (t.def.requiredItems.length) this.audio.play('drop');
         if (t.def.process) this.audio.play('machine');
@@ -364,13 +368,23 @@ export class Game {
   }
 
   /** Called by the prep panel. */
+  stockOf(id: string): number {
+    return this.stock.has(id) ? this.stock.get(id)! : Infinity;
+  }
+
   pickItem(id: string): boolean {
+    if (this.stockOf(id) <= 0) {
+      this.audio.play('error');
+      this.ui.toast('Out of stock — restock the cart', 'bad');
+      return false;
+    }
     if (!this.inv.add(id)) {
       this.audio.play('error');
       this.ui.toast('Prep Tray is full (4 slots)', 'bad');
       return false;
     }
     this.pickedThisVisit.push(id);
+    if (this.stock.has(id)) this.stock.set(id, this.stock.get(id)! - 1);
     this.audio.play('pickup');
     return true;
   }
@@ -379,6 +393,7 @@ export class Game {
     if (this.mode !== 'prep') return;
     const id = this.inv.removeAt(slot);
     if (id) {
+      if (this.stock.has(id)) this.stock.set(id, this.stock.get(id)! + 1);
       this.audio.play('drop');
       if (!this.neededItems().has(id)) this.metrics.wrongPicks += 0.5; // correcting a mistake costs a little
     }
@@ -390,7 +405,7 @@ export class Game {
     const need = this.neededItems();
     for (const id of this.pickedThisVisit) if (!need.has(id)) this.metrics.wrongPicks++;
     this.mode = 'room';
-    if (this.metrics.roomStart === 0) this.metrics.roomStart = this.ts.time;
+    if (this.metrics.roomStart < 0) this.metrics.roomStart = this.ts.time;
     this.y = { k: 'idle' };
     this.world.yolanda.anim = 'idle';
     this.cam.setMode(this.ts.anyActive() ? 'active' : 'room');
@@ -424,18 +439,28 @@ export class Game {
     const bed = this.beds.get(c.id)!;
     const levelRoot = this.world.scene.getObjectByName('level')!;
     levelRoot.attach(bed);
-    const bay = this.world.stations.get(c.patient.bay)!;
-    // free the bay's nav cells
-    const odd = bay.rot % 2 === 1;
-    this.world.nav.blockCentered(bay.center.x, bay.center.z, odd ? 2.5 : 1.15, odd ? 1.15 : 2.5, 0);
-    const ho = this.world.stations.get('handoff')!;
-    const dir = { x: ho.stand.x - ho.center.x, z: ho.stand.z - ho.center.z };
-    const len = Math.hypot(dir.x, dir.z);
-    const park = { x: ho.stand.x + (dir.x / len) * 1.9, z: ho.stand.z + (dir.z / len) * 1.9 + 0.1 };
+    let park: Vec2;
+    let dest: StationView | null = null;
+    const curBay = task.def.special === 'moveBed' ? c.patient.preopBay ?? task.def.stationId : c.patient.bay;
+    const bayView = this.world.stations.get(curBay)!;
+    if (task.def.special === 'moveBed') {
+      dest = this.world.stations.get(c.patient.bay)!;
+      park = { x: dest.center.x, z: dest.center.z };
+      // the target bay is free again (its previous bed left)
+      const o = dest.rot % 2 === 1;
+      this.world.nav.blockCentered(dest.center.x, dest.center.z, o ? 2.5 : 1.15, o ? 1.15 : 2.5, 0);
+    } else {
+      const ho = this.world.stations.get('handoff')!;
+      const dir = { x: ho.stand.x - ho.center.x, z: ho.stand.z - ho.center.z };
+      const len = Math.hypot(dir.x, dir.z);
+      park = { x: ho.stand.x + (dir.x / len) * 1.9, z: ho.stand.z + (dir.z / len) * 1.9 + 0.1 };
+    }
+    const ob = bayView.rot % 2 === 1;
+    this.world.nav.blockCentered(bayView.center.x, bayView.center.z, ob ? 2.5 : 1.15, ob ? 1.15 : 2.5, 0);
     const from = { x: bed.position.x, z: bed.position.z };
     const path = this.world.navWide.findPath(from, park) ?? [from, park];
     this.ts.start(task, 'yolanda', this.inv);
-    this.y = { k: 'transport', c, task, path, i: 1, bed };
+    this.y = { k: 'transport', c, task, path, i: 1, bed, dest };
     this.world.yolanda.anim = 'push';
     this.audio.play('cart');
   }
@@ -512,14 +537,18 @@ export class Game {
     const fc = this.focusCase();
     return this.level.delegations.filter((d) => {
       if (this.delegations.some((x) => x.def.id === d.id)) return false;
-      const t = d.completesTask ? this.ts.get(fc.id, d.completesTask) ?? this.ts.list().find((x) => x.def.id === d.completesTask && x.state !== 'done') : null;
-      if (d.completesTask && (!t || t.state === 'done' || t.state === 'locked')) return false;
-      return true;
+      const t = d.completesTask ? this.ts.list().find((x) => x.def.id === d.completesTask && x.state !== 'done') : null;
+      if (d.completesTask && (!t || t.state !== 'available')) return false;
+      return d.phases.includes(fc.phase);
     });
   }
 
   delegate(d: DelegationDef): void {
     const fc = this.focusCase();
+    if (this.delegations.some((x) => x.def.roleId === d.roleId)) {
+      this.ui.toast(`${STAFF_ROLES[d.roleId].name} is busy — one job at a time.`, 'warn');
+      return;
+    }
     this.delegations.push({ def: d, left: d.eta, total: d.eta, caseId: fc.id });
     this.metrics.delegations++;
     this.audio.play('click');
@@ -527,10 +556,10 @@ export class Game {
     this.ui.toast(`${role.name} (${role.title}): "${d.name} — on it."`, 'info');
     const rig = this.world.npcs.get(d.roleId);
     const t = d.completesTask ? this.ts.list().find((x) => x.def.id === d.completesTask && x.state !== 'done') : null;
+    if (t) this.ts.delegateTask(t, d.roleId);
     if (rig && t) {
       const sv = this.world.stations.get(t.def.stationId);
-      if (sv) this.walk(rig, this.world.nav.nearestWalkable({ x: sv.stand.x + 0.6, z: sv.stand.z + 0.3 }), 2.6, () => { rig.anim = 'interact'; });
-      t.by = d.roleId;
+      if (sv) this.walk(rig, this.world.nav.nearestWalkable({ x: sv.stand.x + 0.7, z: sv.stand.z + 0.5 }), 2.6, () => { rig.anim = 'interact'; });
     }
   }
 
@@ -684,9 +713,25 @@ export class Game {
         this.stepTimer -= dt;
         if (this.stepTimer <= 0) { this.stepTimer = 0.6; this.audio.play('cart'); }
         if (y.i >= y.path.length) {
-          this.ts.complete(y.task);
-          this.y = { k: 'idle' };
-          this.queue.insertNext('handoff');
+          if (y.dest) {
+            // settle into the procedure bay
+            const dest = y.dest;
+            bed.rotation.y = dest.rot * Math.PI / 2;
+            bed.position.set(dest.center.x, 0, dest.center.z);
+            const o = dest.rot % 2 === 1;
+            this.world.nav.blockCentered(dest.center.x, dest.center.z, o ? 2.5 : 1.15, o ? 1.15 : 2.5, 1);
+            const from = y.task.def.stationId;
+            this.ts.retarget(y.c, from, dest.place.id);
+            this.ts.complete(y.task);
+            rig.root.position.set(dest.stand.x, 0, dest.stand.z);
+            rig.root.rotation.y = dest.face;
+            this.ui.toast(`${y.c.patient.name} is in the procedure bay.`, 'good');
+            this.y = { k: 'idle' };
+          } else {
+            this.ts.complete(y.task);
+            this.y = { k: 'idle' };
+            this.queue.insertNext('handoff');
+          }
         }
         break;
       }
@@ -700,12 +745,22 @@ export class Game {
 
   private afterTask(t: TaskRT): void {
     const c = this.ts.caseOf(t);
+    if (t.def.id === 'restock') this.doRestock();
+    if (t.def.stationId === 'supplies' && t.by === 'yolanda' && this.mode === 'room') {
+      this.openPrep();
+      return;
+    }
     const pr = this.world.patients.get(c.id)!;
     if (t.def.id === 'apply_monitors') pr.monitored.visible = true;
     if (t.def.id === 'comfort_chat') { pr.warmBlanket.visible = true; pr.state = 'happy'; this.ui.toast(`${c.patient.name} relaxes. ♥`, 'good'); }
     if (t.def.id === 'wake_check') pr.state = 'awake';
     if (t.def.id === 'assess_patient' && pr.state === 'anxious') pr.state = 'awake';
     if (t.state === 'running') this.ui.toast(`${t.def.label ?? t.def.name} started · ${Math.round(t.def.process ?? 0)}s`, 'info');
+  }
+
+  private doRestock(): void {
+    for (const id of this.stock.keys()) this.stock.set(id, Math.max(this.stock.get(id)!, this.level.restockTo ?? 3));
+    this.ui.toast('Supply cart restocked', 'good');
   }
 
   private followPath(obj: THREE.Object3D, path: Vec2[], st: { i: number }, dist: number): number {
@@ -750,7 +805,7 @@ export class Game {
       const role = STAFF_ROLES[d.def.roleId];
       if (d.def.completesTask) {
         const t = this.ts.list().find((x) => x.def.id === d.def.completesTask && x.state !== 'done');
-        if (t) this.ts.forceComplete(t);
+        if (t) { this.ts.forceComplete(t); if (t.def.id === 'restock') this.doRestock(); }
       }
       if (d.def.deliversItem) {
         if (!this.inv.add(d.def.deliversItem)) this.ui.toast(`${role.name} left ${ITEMS[d.def.deliversItem].name} on the cart (tray full)`, 'warn');
@@ -771,7 +826,7 @@ export class Game {
     switch (kind) {
       case 'room': return this.mode === 'room';
       case 'task': {
-        const t = this.ts.get(c.id, a);
+        const t = a.includes('.') ? this.ts.tasks.get(a) : this.ts.get(c.id, a);
         if (!t) return false;
         if (b === 'running') return t.state === 'running' || t.state === 'ready' || t.state === 'done';
         if (b === 'done') return t.state === 'done';
@@ -834,7 +889,7 @@ export class Game {
     // supply drawers open while in prep
     const sup = w.stations.get('supplies');
     sup?.model.userData.drawers?.forEach((d, i) => {
-      const open = this.mode === 'prep' ? 0.42 - i * 0.06 : 0;
+      const open = this.mode === 'prep' ? 0.55 - i * 0.08 : 0;
       d.position.z += (d.userData.closedZ + open - d.position.z) * Math.min(1, dtReal * 7);
     });
     // patient zone

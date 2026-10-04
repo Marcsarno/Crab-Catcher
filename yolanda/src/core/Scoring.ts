@@ -18,7 +18,7 @@ export interface Metrics {
 export function newMetrics(): Metrics {
   return {
     walk: 0, wastedVisits: 0, waitTime: 0, wrongPicks: 0, drawerTrips: 0, handoffCorrect: {}, handoffWrong: {},
-    roomStart: 0, proceduralistArrived: {}, delegations: 0, zoneBlocks: 0,
+    roomStart: -1, proceduralistArrived: {}, delegations: 0, zoneBlocks: 0,
   };
 }
 
@@ -56,18 +56,19 @@ export function scoreLevel(ts: TaskSystem, m: Metrics, parWalk: number): ScoreRe
     const wake = g('wake_check'), transport = g('transport');
     const recoveryAt = c.phaseAt.recovery ?? ts.time;
     const activeAt = c.phaseAt.active ?? ts.time;
-    const roomStart = Math.max(m.roomStart, c.patient.arrival);
+    const roomStart = Math.max(m.roomStart, c.patient.arrival, 0);
 
     // ---- anticipation: slow machines started early
+    const since = (t: { availableAt: number | null }) => Math.max(roomStart, t.availableAt ?? roomStart);
     if (ws?.startedAt != null) {
-      const delay = ws.startedAt - roomStart;
-      checks.push({ cat: 'anticipation', weight: 2, score: clamp01(1 - (delay - 6) / 30),
+      const delay = ws.startedAt - since(ws);
+      checks.push({ cat: 'anticipation', weight: 2, score: clamp01(1 - (delay - 4) / 18),
         good: named(c, 'Started the workstation check early.'), improve: named(c, 'Start the workstation check sooner — it is the slowest step.') });
     }
-    const machineDelay = [seda, scope].filter((t) => t?.startedAt != null).map((t) => t!.startedAt! - roomStart);
+    const machineDelay = [seda, scope].filter((t) => t?.startedAt != null).map((t) => t!.startedAt! - since(t!));
     if (machineDelay.length) {
       const worst = Math.max(...machineDelay);
-      checks.push({ cat: 'anticipation', weight: 1.5, score: clamp01(1 - (worst - 15) / 35),
+      checks.push({ cat: 'anticipation', weight: 1.5, score: clamp01(1 - (worst - 12) / 24),
         good: named(c, 'Got SedaPrep and ScopeAir running early.'), improve: named(c, 'Load SedaPrep/ScopeAir earlier so they finish while you work.') });
     }
     if (pacu?.doneAt != null || pacu?.startedAt != null) {
@@ -96,7 +97,7 @@ export function scoreLevel(ts: TaskSystem, m: Metrics, parWalk: number): ScoreRe
     const procArr = m.proceduralistArrived[c.id];
     if (procArr != null && timeOut?.doneAt != null) {
       const wait = Math.max(0, timeOut.doneAt - procArr - 3);
-      checks.push({ cat: 'team', weight: 2, score: clamp01(1 - wait / 25),
+      checks.push({ cat: 'team', weight: 2.5, score: clamp01(1 - wait / 15),
         good: named(c, `${c.template.proceduralist.name} started without waiting.`), improve: named(c, `${c.template.proceduralist.name} waited ${Math.round(wait)}s for you to be ready.`) });
     }
     if (wake?.doneAt != null && transport?.startedAt != null) {
@@ -159,7 +160,7 @@ export function scoreLevel(ts: TaskSystem, m: Metrics, parWalk: number): ScoreRe
     const cs = checks.filter((c) => c.cat === cat);
     const w = cs.reduce((a, c) => a + c.weight, 0);
     raw[cat] = w ? cs.reduce((a, c) => a + c.weight * c.score, 0) / w : 1;
-    stars[cat] = raw[cat] >= 0.85 ? 3 : raw[cat] >= 0.55 ? 2 : 1;
+    stars[cat] = raw[cat] >= 0.9 ? 3 : raw[cat] >= 0.6 ? 2 : 1;
   }
   const good = checks.filter((c) => c.score >= 0.85 && c.good).sort((a, b) => b.weight - a.weight).map((c) => c.good);
   const improve = checks.filter((c) => c.score < 0.7 && c.improve).sort((a, b) => b.weight * (1 - b.score) - a.weight * (1 - a.score)).map((c) => c.improve);

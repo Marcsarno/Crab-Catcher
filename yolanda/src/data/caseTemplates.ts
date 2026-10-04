@@ -58,18 +58,18 @@ export const CASE_TEMPLATES: Record<string, CaseTemplate> = {
       {
         id: 'assess_patient', name: 'Assess patient', label: 'Assess patient',
         stationId: '$bay', phase: 'prep', duration: 3.5, prerequisites: ['review_chart'], requiredItems: [], producedItems: [],
-        requiresYolanda: true, safetyCritical: true, priority: 6, scoreCategory: 'care', anim: 'talk', special: 'assess',
+        requiresYolanda: true, safetyCritical: true, priority: 6, scoreCategory: 'care', anim: 'talk', special: 'assess', preop: true,
         hint: 'Talk with the patient — it can change your plan.',
       },
       {
         id: 'apply_monitors', name: 'Attach monitors', label: 'Attach monitors',
         stationId: '$bay', phase: 'prep', duration: 2.5, prerequisites: ['assess_patient'], requiredItems: ['monitorPack'], producedItems: [],
-        requiresYolanda: true, safetyCritical: true, priority: 5, scoreCategory: 'safety', anim: 'interact',
+        requiresYolanda: true, safetyCritical: true, priority: 5, scoreCategory: 'safety', anim: 'interact', preop: true,
       },
       {
         id: 'comfort_chat', name: 'Warm blanket & reassure', label: 'Blanket & reassure (bonus)',
         stationId: '$bay', phase: 'prep', duration: 2.5, prerequisites: ['assess_patient'], requiredItems: [], producedItems: [],
-        requiresYolanda: true, optional: true, priority: 2, scoreCategory: 'care', anim: 'talk',
+        requiresYolanda: true, optional: true, priority: 2, scoreCategory: 'care', anim: 'talk', preop: true,
       },
       {
         id: 'time_out', name: 'Time out & begin sedation', label: 'Begin sedation',

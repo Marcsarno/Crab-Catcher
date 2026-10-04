@@ -10,7 +10,7 @@ page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
 await page.goto(url);
 await page.waitForTimeout(2500);
 await page.screenshot({ path: `${out}/01-title.png` });
-const steps = (process.argv[2] ?? '').split(',').filter(Boolean);
+const steps = (process.argv[2] ?? '').split(process.argv[2]?.includes(' | ') ? ' | ' : ',').filter(Boolean);
 let n = 2;
 for (const s of steps) {
   if (s.startsWith('sleep')) { await page.waitForTimeout(Number(s.slice(5))); continue; }

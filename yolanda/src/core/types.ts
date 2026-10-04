@@ -118,7 +118,11 @@ export interface TaskDef {
   /** Animation Yolanda plays during the hands-on part. */
   anim?: AnimName;
   /** Special interaction handled by the game layer. */
-  special?: 'transport' | 'handoff' | 'assess';
+  special?: 'transport' | 'handoff' | 'assess' | 'moveBed';
+  /** Done in the pre-op bay when the patient has one (e.g. assessment). */
+  preop?: boolean;
+  /** Level logistics task: available regardless of patient arrival. */
+  levelTask?: boolean;
   /** Hint shown when this is the suggested next step. */
   hint?: string;
   /** Hidden from the task list until unlocked by a modifier reveal. */
@@ -194,8 +198,10 @@ export interface PatientDef {
   id: string;
   name: string;
   age: string;
-  /** Which bay station the patient occupies. */
+  /** Which bay station the procedure happens in. */
   bay: string;
+  /** Pre-op bay the patient waits in before moving to `bay`. */
+  preopBay?: string;
   /** Seconds after level start that the patient becomes available (arrives). */
   arrival: number;
   /** Seconds after the case is ready that the proceduralist arrives on their own. */
@@ -248,6 +254,12 @@ export interface LevelDef {
   glowRequired?: boolean;
   /** One-line teaching goal. */
   lesson: string;
-  /** Turnover tasks between cases (level 2). */
+  /** Turnover tasks between cases (level 2). Attached to the last case. */
   turnoverTasks?: TaskDef[];
+  /** Extra prerequisites per case, e.g. "B.time_out needs B.bring_to_bay". */
+  casePatches?: { caseId: string; taskId: string; addPrerequisites: string[] }[];
+  /** Limited supply-cart stock (items not listed are unlimited). */
+  stock?: Record<string, number>;
+  /** Stock level after a restock. */
+  restockTo?: number;
 }

@@ -6,6 +6,7 @@ import { chromium } from 'playwright-core';
 const levelId = process.argv.find((a) => /^L\d$/.test(a)) ?? 'L1';
 const speed = Number((process.argv.find((a) => a.startsWith('--speed=')) ?? '--speed=4').split('=')[1]);
 const shots = process.argv.includes('--shots');
+const lazy = process.argv.includes('--lazy'); // naive player: quick tasks first, never pages or delegates
 const url = process.env.URL ?? 'http://localhost:5173/';
 
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
@@ -24,7 +25,7 @@ await page.evaluate(([id, sp]) => {
 }, [levelId, speed]);
 
 // The bot runs inside the page so it reacts every frame-ish.
-const result = await page.evaluate(async () => {
+const botPromise = page.evaluate(async (lazy) => {
   const app = window.__yolanda;
   const log = [];
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -33,7 +34,7 @@ const result = await page.evaluate(async () => {
   let lastLog = '';
   const say = (s) => { if (s !== lastLog) { log.push(`[t=${g().ts.time.toFixed(1)}] ${s}`); lastLog = s; } };
   // stations in a sensible preference order (slow machines first)
-  const pref = ['workstation', 'airready', 'sedaprep', 'scopeair', 'chart', 'bay2', 'bay1', 'handoff'];
+  const pref = lazy ? ['chart', 'bay2', 'bay1', 'supplies', 'scopeair', 'sedaprep', 'airready', 'workstation', 'handoff'] : ['workstation', 'airready', 'sedaprep', 'scopeair', 'chart', 'supplies', 'bay2', 'bay1', 'handoff'];
   while (performance.now() - t0 < 240000) {
     const game = g();
     if (game.mode === 'results') break;
@@ -50,7 +51,7 @@ const result = await page.evaluate(async () => {
       // pick what unfinished tasks need, but leave room for outputs
       for (const id of need) {
         if (game.inv.free <= 0) break;
-        if (game.inv.count(id) === 0) { game.pickItem(id); say(`pick ${id}`); }
+        if (game.inv.count(id) === 0 && game.stockOf(id) > 0) { game.pickItem(id); say(`pick ${id}`); }
       }
       game.closePrep();
       say(`close prep, tray=${game.inv.items.join(',')}`);
@@ -70,7 +71,8 @@ const result = await page.evaluate(async () => {
     }
     if (game.mode === 'room' && (game.y.k === 'idle') && game.queue.length === 0) {
       const fc = game.focusCase();
-      if (game.canPage(fc)) { game.page(fc); say('page proceduralist'); }
+      if (!lazy && game.canPage(fc)) { game.page(fc); say('page proceduralist'); }
+      if (!lazy) for (const d of game.availableDelegations()) { game.delegate(d); say(`delegate ${d.id}`); }
       let chosen = null;
       for (const id of pref) {
         if (!game.world.stations.has(id)) continue;
@@ -80,14 +82,31 @@ const result = await page.evaluate(async () => {
         if (a.type === 'do' || a.type === 'collect') { chosen = id; say(`→ ${id} (${a.type} ${a.task.def.id})`); break; }
       }
       // need supplies?
-      if (!chosen && game.glowItems().size && game.inv.free > 0 && !game.ts.anyActive()) { chosen = 'supplies'; say('→ supplies'); }
+      if (!chosen && [...game.glowItems()].some((id) => game.stockOf(id) > 0) && game.inv.free > 0 && !game.ts.anyActive() && game.y.k === 'idle') { chosen = 'supplies'; say('→ supplies'); }
       if (chosen) game.tapStation(chosen);
     }
     await sleep(40);
   }
   return { log, mode: g().mode, result: g().result, metrics: g().metrics, time: g().ts.time };
-});
+}, lazy);
 
+// Snapshot each phase change (and a few moments inside it) while the bot plays.
+if (shots) {
+  let lastKey = '';
+  let n = 0;
+  const t0 = Date.now();
+  while (Date.now() - t0 < 240000) {
+    const st = await page.evaluate(() => { const g = window.__yolanda.game; const c = g.focusCase(); return { key: `${g.mode}-${c.id}-${c.phase}`, mode: g.mode, t: g.ts.time }; });
+    if (st.key !== lastKey) {
+      lastKey = st.key;
+      await page.waitForTimeout(1800);
+      await page.screenshot({ path: `shots/pt-${levelId}-${String(n++).padStart(2, '0')}-${st.key}.png` });
+    }
+    if (st.mode === 'results') break;
+    await page.waitForTimeout(300);
+  }
+}
+const result = await botPromise;
 if (shots) await page.screenshot({ path: `shots/playtest-${levelId}-end.png` });
 console.log(result.log.join('\n'));
 console.log('\nMODE:', result.mode, ' sim time:', result.time.toFixed(1), 's');

@@ -141,6 +141,8 @@ export class Hud implements GameUI {
     el.querySelector('.x')!.addEventListener('click', () => { el.remove(); this.hintEl = null; });
     this.el.append(el);
     this.hintEl = el;
+    // hints fade away on their own after a while so they never block the room for long
+    setTimeout(() => { if (this.hintEl === el) { el.remove(); this.hintEl = null; } }, 16000);
   }
 
   bump(id: string): void {
@@ -188,7 +190,9 @@ export class Hud implements GameUI {
       html += `<div class="drawer"><h5><i style="background:${d.color}"></i>${d.name}</h5><div class="items">`;
       for (const it of items) {
         const cnt = g.inv.count(it.id);
-        html += `<div class="item ${glow.has(it.id) ? 'glow' : ''}" data-id="${it.id}">${itemIcon(it)}<span>${it.name}</span>${cnt ? `<span class="cnt">${cnt}</span>` : ''}</div>`;
+        const left = g.stockOf(it.id);
+        const stockTag = left === Infinity ? '' : `<span class="stock ${left <= 0 ? 'out' : ''}">${left <= 0 ? 'OUT' : `${left} left`}</span>`;
+        html += `<div class="item ${glow.has(it.id) ? 'glow' : ''} ${left <= 0 ? 'empty' : ''}" data-id="${it.id}">${itemIcon(it)}<span>${it.name}</span>${cnt ? `<span class="cnt">${cnt}</span>` : ''}${stockTag}</div>`;
       }
       html += '</div></div>';
     }
@@ -309,34 +313,53 @@ export class Hud implements GameUI {
     const inRoom = g.mode === 'room' || g.mode === 'paused';
     this.tasksEl.classList.toggle('hidden', !inRoom);
     this.timersEl.classList.toggle('hidden', !inRoom && g.mode !== 'prep');
-    if (this.hintEl) this.hintEl.style.bottom = `calc(${this.careEl.classList.contains('hidden') ? 158 : 222}px + var(--safe-bottom))`;
+    if (this.hintEl) {
+      this.hintEl.style.top = `calc(${this.careEl.classList.contains('hidden') ? 68 : 132}px + var(--safe-top))`;
+      this.hintEl.style.visibility = this.tasksCollapsed ? '' : 'hidden';
+    }
+    // toasts sit just below whatever occupies the top (hint, care panel)
+    let topY = 68;
+    if (!this.careEl.classList.contains('hidden')) topY = this.careEl.offsetTop + this.careEl.offsetHeight + 6;
+    if (this.hintEl && this.hintEl.style.visibility !== 'hidden' && !this.hintEl.classList.contains('hidden')) topY = this.hintEl.offsetTop + this.hintEl.offsetHeight + 6;
+    this.toastsEl.style.top = `${topY}px`;
   }
 
   private taskLabel(t: TaskRT): string {
     return t.def.label ?? t.def.name;
   }
 
-  private renderTasks(c: CaseRT): void {
+  private renderTasks(_focus: CaseRT): void {
     const g = this.g;
-    const all = g.ts.list().filter((t) => t.caseId === c.id && !t.def.hidden && !t.def.auto);
-    const inPhase = (t: TaskRT) => (Array.isArray(t.def.phase) ? t.def.phase : [t.def.phase]).includes(c.phase);
-    let rows = all.filter((t) => inPhase(t) || (t.state !== 'done' && t.state !== 'locked'));
-    if (c.phase !== 'prep') rows = rows.filter((t) => !(t.def.optional && t.state === 'locked'));
-    rows.sort((a, b) => (b.event ? 1 : 0) - (a.event ? 1 : 0));
-    const doneN = rows.filter((t) => t.state === 'done').length;
-    const key = rows.map((t) => `${t.key}:${t.state}:${t.state === 'running' ? Math.ceil(t.processLeft) : ''}:${g.inv.items.join()}`).join('|') + this.tasksCollapsed;
+    const cases = g.ts.cases.filter((c) => c.phase !== 'done' && (c.arrived || g.ts.list().some((t) => t.caseId === c.id && t.def.levelTask)));
+    const sections: { title: string; rows: TaskRT[] }[] = [];
+    let doneN = 0, totalN = 0;
+    for (const c of cases) {
+      const inPhase = (t: TaskRT) => (Array.isArray(t.def.phase) ? t.def.phase : [t.def.phase]).includes(c.phase);
+      let rows = g.ts.list().filter((t) => t.caseId === c.id && !t.def.hidden && !t.def.auto && (c.arrived || t.def.levelTask))
+        .filter((t) => inPhase(t) || (t.state !== 'done' && t.state !== 'locked'));
+      if (c.phase !== 'prep') rows = rows.filter((t) => !(t.def.optional && t.state === 'locked'));
+      rows.sort((x, y) => (y.event ? 1 : 0) - (x.event ? 1 : 0));
+      doneN += rows.filter((t) => t.state === 'done').length;
+      totalN += rows.length;
+      sections.push({ title: cases.length > 1 ? `${c.patient.name}${c.arrived ? '' : ' (arriving)'}` : '', rows });
+    }
+    const key = sections.map((sec) => sec.title + sec.rows.map((t) => `${t.key}:${t.state}:${t.state === 'running' ? Math.ceil(t.processLeft) : ''}`).join('|')).join('#') + g.inv.items.join() + this.tasksCollapsed;
     if (key === this.lastTasks) return;
     this.lastTasks = key;
-    let html = `<h4><span>TASKS ${doneN}/${rows.length}</span><span>${this.tasksCollapsed ? '▸' : '▾'}</span></h4><ul>`;
-    for (const t of rows.slice(0, 11)) {
-      const st = t.state === 'working' ? 'available' : t.state;
-      let right = '';
-      if (t.state === 'running') right = `<span class="t">${Math.ceil(t.processLeft)}s</span>`;
-      if (t.state === 'ready') right = '<span class="t">READY</span>';
-      const missing = t.state === 'available' ? g.inv.missing(t.def.requiredItems) : [];
-      const need = missing.length ? `<span class="need">needs ${missing.map((m) => ITEMS[m]?.short ?? m).join(' + ')}</span>` : '';
-      const label = t.event ? `<b style="color:#ff8f8f">${this.taskLabel(t)}</b>` : this.taskLabel(t);
-      html += `<li class="${st} ${t.def.optional ? 'optional' : ''}"><span class="ck">${t.state === 'done' ? ICON.check : ''}</span><span>${label}${need}</span>${right}</li>`;
+    let html = `<h4><span>${this.tasksCollapsed ? '☑' : 'TASKS'} ${doneN}/${totalN}</span><span>${this.tasksCollapsed ? '▸' : '▾'}</span></h4><ul>`;
+    for (const sec of sections) {
+      if (sec.title) html += `<li class="sec"><b>${sec.title}</b></li>`;
+      for (const t of sec.rows.slice(0, 12)) {
+        const st = t.state === 'working' ? (t.by && t.by !== 'yolanda' ? 'running' : 'available') : t.state;
+        let right = '';
+        if (t.state === 'running') right = `<span class="t">${Math.ceil(t.processLeft)}s</span>`;
+        if (t.state === 'ready') right = '<span class="t">READY</span>';
+        if (t.state === 'working' && t.by && t.by !== 'yolanda') right = `<span class="t">${STAFF_ROLES[t.by]?.name ?? ''}</span>`;
+        const missing = t.state === 'available' ? g.inv.missing(t.def.requiredItems) : [];
+        const need = missing.length ? `<span class="need">needs ${missing.map((m) => ITEMS[m]?.short ?? m).join(' + ')}</span>` : '';
+        const label = t.event ? `<b style="color:#ff8f8f">${this.taskLabel(t)}</b>` : this.taskLabel(t);
+        html += `<li class="${st} ${t.def.optional ? 'optional' : ''}"><span class="ck">${t.state === 'done' ? ICON.check : ''}</span><span>${label}${need}</span>${right}</li>`;
+      }
     }
     html += '</ul>';
     this.tasksEl.innerHTML = html;

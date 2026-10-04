@@ -73,7 +73,7 @@ export class TaskSystem {
     const template = CASE_TEMPLATES[level.caseTemplateId];
     for (const patient of level.patients) {
       const c: CaseRT = {
-        id: patient.id, patient, template, phase: 'prep', phaseAt: { prep: 0 },
+        id: patient.id, patient: { ...patient }, template, phase: 'prep', phaseAt: { prep: 0 },
         arrived: false, proceduralistPresent: false, activeTime: 0, firedEvents: new Set(),
         pendingMods: [], activeMods: [], plan: template.plan.map((p) => ({ ...p, items: [...p.items] })),
       };
@@ -92,6 +92,10 @@ export class TaskSystem {
       const c = this.cases[this.cases.length - 1];
       this.addTask(c, t);
     }
+    for (const p of level.casePatches ?? []) {
+      const t = this.get(p.caseId, p.taskId);
+      if (t) t.def.prerequisites.push(...p.addPrerequisites.map((x) => (x.includes('.') ? x : `${p.caseId}.${x}`)));
+    }
   }
 
   // ------------------------------------------------------------------ building
@@ -99,7 +103,7 @@ export class TaskSystem {
   private resolveDef(c: CaseRT, def: TaskDef): TaskDef {
     return {
       ...def,
-      stationId: def.stationId === '$bay' ? c.patient.bay : def.stationId,
+      stationId: def.stationId === '$bay' ? (def.preop && c.patient.preopBay ? c.patient.preopBay : c.patient.bay) : def.stationId,
       prerequisites: def.prerequisites.map((p) => (p.includes('.') ? p : `${c.id}.${p}`)),
       requiredItems: [...def.requiredItems],
       producedItems: [...def.producedItems],
@@ -220,7 +224,7 @@ export class TaskSystem {
     if (blocked) return blocked;
     // 3. explain locked work here (unmet prerequisites)
     const locked = here
-      .filter((t) => t.state === 'locked' && !t.def.optional && !t.def.hidden && this.caseOf(t).arrived && asList(t.def.phase).includes(this.caseOf(t).phase))
+      .filter((t) => t.state === 'locked' && !t.def.optional && !t.def.hidden && (this.caseOf(t).arrived || t.def.levelTask) && asList(t.def.phase).includes(this.caseOf(t).phase))
       .sort((a, b) => this.sortKey(b) - this.sortKey(a));
     for (const t of locked) {
       const unmet = t.def.prerequisites.map((p) => this.tasks.get(p)).find((p) => p && p.state !== 'done');
@@ -326,7 +330,7 @@ export class TaskSystem {
     for (const t of this.tasks.values()) {
       const c = this.caseOf(t);
       const phaseOk = asList(t.def.phase).includes(c.phase);
-      if (t.state === 'locked' && c.arrived && phaseOk && this.prereqsMet(t) && !t.def.hidden) {
+      if (t.state === 'locked' && (c.arrived || t.def.levelTask) && phaseOk && this.prereqsMet(t) && !t.def.hidden) {
         this.setState(t, 'available');
       } else if (t.state === 'available' && (!phaseOk || !this.prereqsMet(t))) {
         // Phase moved on (e.g. optional comfort task after sedation started).
@@ -353,7 +357,7 @@ export class TaskSystem {
       }
     }
     for (const t of this.tasks.values()) {
-      if (t.state === 'working' && t.by !== 'yolanda') {
+      if (t.state === 'working' && t.by === 'auto') {
         t.work += dt;
         if (t.work >= t.def.duration) this.finishWork(t);
       } else if (t.state === 'running') {
@@ -381,6 +385,22 @@ export class TaskSystem {
       return true;
     }
     return false;
+  }
+
+  /** Patient moved beds: unfinished tasks follow them. */
+  retarget(c: CaseRT, from: string, to: string): void {
+    for (const t of this.tasks.values()) {
+      if (t.caseId === c.id && t.def.stationId === from && t.state !== 'done') t.def.stationId = to;
+    }
+    c.patient.bay = to;
+    c.patient.preopBay = undefined;
+  }
+
+  /** Hand a task to a staff member; the game finishes it when their ETA runs out. */
+  delegateTask(t: TaskRT, roleId: string): void {
+    t.by = roleId;
+    t.startedAt = this.time;
+    this.setState(t, 'working');
   }
 
   /** Abandon hands-on work (e.g. redirected). Items are returned. */
