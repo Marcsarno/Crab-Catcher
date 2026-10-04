@@ -483,10 +483,10 @@ export class Hud implements GameUI {
     const active = g.ts.anyActive();
     for (const [id, el] of this.labelEls) {
       const sv = g.world.stations.get(id)!;
-      this.v.set(sv.center.x, sv.labelY, sv.center.z).project(camera);
+      this.v.copy(sv.labelPos).project(camera);
       const half = (el.offsetWidth || 120) / 2;
       const x = Math.max(half + 4, Math.min(w - half - 4, (this.v.x * 0.5 + 0.5) * w)), y = (-this.v.y * 0.5 + 0.5) * hgt;
-      el.style.transform = `translate(${x - half}px, ${y}px) translate(0, -100%)`;
+      el.style.transform = `translate(${x - half}px, ${y}px) translate(0, -50%)`;
       // state badge
       const here = g.ts.list().filter((t) => t.def.stationId === id);
       const ev = here.find((t) => t.event && t.state !== 'done');

@@ -76,8 +76,11 @@ export interface EnvironmentDef {
   /** Door where visitors enter. */
   door: { x: number; z: number };
   /** Decorative props: plants, posters, windows. */
-  decor: { kind: 'plant' | 'window' | 'poster' | 'bench' | 'lights' | 'sink'; x: number; z: number; rot?: number }[];
+  decor: { kind: 'plant' | 'window' | 'poster' | 'bench' | 'lights' | 'sink' | 'sign' | 'door' | 'boxes'; x: number; z: number; rot?: number; scale?: number }[];
   floor: 'tile' | 'or';
+  /** Fixed camera yaw/pitch (radians). The camera NEVER rotates away from these. */
+  camYaw: number;
+  camPitch: number;
 }
 
 /** A task node in the case graph. */

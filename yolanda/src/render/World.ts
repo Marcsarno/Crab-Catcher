@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { EnvironmentDef, LevelDef, StationDef, StationPlacement } from '../core/types';
 import { STATIONS } from '../data/stations';
 import { NavGrid, type Vec2 } from '../nav/NavGrid';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { C, at, canvasTex, mat, plane, rbox, textPlane } from './palette';
 import {
   makeAirReady, makeBed, makeBench, makeChartDesk, makeHandoff, makePlant, makeScopeAir, makeSedaPrep,
@@ -20,12 +21,26 @@ export interface StationView {
   hit: THREE.Mesh;
   marker: THREE.Mesh;
   markerMat: THREE.MeshBasicMaterial;
-  /** Height for the floating label. */
-  labelY: number;
+  /** Where the station's name tag sits (front edge, near the floor). */
+  labelPos: THREE.Vector3;
+  /** Top of the model (for the "go here next" arrow). */
+  topY: number;
   rot: number;
 }
 
-const WALL_H = 2.9;
+const WALL_H = 3.1;
+
+/** Soft round contact-shadow texture (cheap ambient occlusion under objects). */
+function blobTex(): THREE.Texture {
+  return canvasTex('blob', 128, 128, (ctx, w, h) => {
+    const g = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+    g.addColorStop(0, 'rgba(30,50,80,0.55)');
+    g.addColorStop(0.55, 'rgba(30,50,80,0.28)');
+    g.addColorStop(1, 'rgba(30,50,80,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+  });
+}
 
 export class World {
   readonly scene = new THREE.Scene();
@@ -38,30 +53,57 @@ export class World {
   zone!: THREE.Mesh;
   zoneMat!: THREE.MeshBasicMaterial;
   env!: EnvironmentDef;
+  /** Bouncing "go here next" chevron. */
+  arrow!: THREE.Group;
   private hitList: THREE.Object3D[] = [];
   private floor!: THREE.Mesh;
   navDebug: THREE.Object3D | null = null;
   pathLine: THREE.Line | null = null;
   readonly dirLight: THREE.DirectionalLight;
+  private blobMat = new THREE.MeshBasicMaterial({ map: blobTex(), transparent: true, depthWrite: false });
 
   constructor() {
-    this.scene.background = new THREE.Color('#cfe3f1');
-    const hemi = new THREE.HemisphereLight('#ffffff', '#b6c6d6', 1.25);
+    this.scene.background = new THREE.Color('#9fb9d6');
+    const hemi = new THREE.HemisphereLight('#fff8ee', '#9fb7d3', 0.85);
     this.scene.add(hemi);
-    const dir = new THREE.DirectionalLight('#fff4e6', 1.9);
-    dir.position.set(5, 14, 7);
+    const dir = new THREE.DirectionalLight('#fff1dc', 2.1);
+    dir.position.set(-6, 15, 8);
     dir.castShadow = true;
-    dir.shadow.mapSize.set(1024, 1024);
+    dir.shadow.mapSize.set(2048, 2048);
     const sc = dir.shadow.camera;
-    sc.left = -12; sc.right = 12; sc.top = 13; sc.bottom = -13; sc.near = 1; sc.far = 40;
-    dir.shadow.bias = -0.0008;
-    dir.shadow.normalBias = 0.02;
-    dir.shadow.radius = 3;
+    sc.left = -12; sc.right = 12; sc.top = 12; sc.bottom = -12; sc.near = 1; sc.far = 45;
+    dir.shadow.bias = -0.0006;
+    dir.shadow.normalBias = 0.03;
+    dir.shadow.radius = 4;
     this.dirLight = dir;
     this.scene.add(dir, dir.target);
-    const fill = new THREE.DirectionalLight('#dbe9ff', 0.45);
-    fill.position.set(-8, 6, 10);
-    this.scene.add(fill);
+  }
+
+  /** Image-based lighting gives the soft, glossy plastic look. Call once with the renderer. */
+  initEnvironment(renderer: THREE.WebGLRenderer): void {
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    this.scene.environmentIntensity = 0.55;
+    pmrem.dispose();
+  }
+
+  private blob(root: THREE.Object3D, x: number, z: number, w: number, d: number, yaw = 0, opacity = 1): THREE.Mesh {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), opacity === 1 ? this.blobMat : this.blobMat.clone());
+    if (opacity !== 1) (m.material as THREE.MeshBasicMaterial).opacity = opacity;
+    m.rotation.set(-Math.PI / 2, 0, yaw);
+    m.position.set(x, 0.012, z);
+    m.renderOrder = 1;
+    root.add(m);
+    return m;
+  }
+
+  /** Block a rectangle given in a station's local frame. */
+  private blockLocal(place: StationPlacement, lx: number, lz: number, w: number, d: number, grids: NavGrid[]): void {
+    const yaw = (place.rot ?? 0) * Math.PI / 2;
+    const c = Math.cos(yaw), s = Math.sin(yaw);
+    const wx = place.x + lx * c + lz * s, wz = place.z - lx * s + lz * c;
+    const odd = (place.rot ?? 0) % 2 === 1;
+    for (const g of grids) g.blockCentered(wx, wz, odd ? d : w, odd ? w : d);
   }
 
   build(env: EnvironmentDef, level: LevelDef): void {
@@ -69,9 +111,9 @@ export class World {
     const root = new THREE.Group();
     root.name = 'level';
     this.scene.add(root);
+    this.nav = new NavGrid(env.width, env.depth, 0.25, 0.34);
+    this.navWide = new NavGrid(env.width, env.depth, 0.25, 0.8);
     this.buildRoom(env, root);
-    this.nav = new NavGrid(env.width, env.depth, 0.25, 0.32);
-    this.navWide = new NavGrid(env.width, env.depth, 0.25, 0.75);
 
     for (const place of env.stations) {
       const def = STATIONS[place.id];
@@ -83,45 +125,55 @@ export class World {
       root.add(model);
       const odd = rot % 2 === 1;
       const fw = odd ? def.d : def.w, fd = odd ? def.w : def.d;
-      if (def.kind !== 'bay' && def.kind !== 'preop') {
+      if (def.kind === 'bay' || def.kind === 'preop') {
+        // the bed itself (the wide grid ignores beds: they move during transport)
+        this.blockLocal(place, 0, 0, 1.25, 2.6, [this.nav]);
+        if (def.kind === 'bay') {
+          // cubicle partitions + side table
+          this.blockLocal(place, 0.1, -1.65, 3.45, 0.2, [this.nav, this.navWide]);
+          this.blockLocal(place, -1.27, -0.1, 0.2, 3.1, [this.nav, this.navWide]);
+          this.blockLocal(place, -0.72, -1.35, 0.5, 0.45, [this.nav]);
+        }
+        this.blob(root, place.x, place.z, 1.9, 3.3, yaw, 0.9);
+      } else {
         this.nav.blockCentered(place.x, place.z, fw, fd);
         this.navWide.blockCentered(place.x, place.z, fw, fd);
-      } else {
-        // beds: block the bed itself (narrower than footprint incl. curtain), wide grid ignores beds (they move)
-        this.nav.blockCentered(place.x, place.z, odd ? 2.5 : 1.15, odd ? 1.15 : 2.5);
+        this.blob(root, place.x, place.z, fw + 0.7, fd + 0.7, 0, 0.85);
       }
       const front = { x: Math.sin(yaw), z: Math.cos(yaw) };
       const stand = place.stand
         ? { x: place.x + place.stand.x, z: place.z + place.stand.z }
         : { x: place.x + front.x * (def.d / 2 + 0.6), z: place.z + front.z * (def.d / 2 + 0.6) };
       const face = Math.atan2(place.x - stand.x, place.z - stand.z);
-      // generous invisible hit box
-      const hit = new THREE.Mesh(new THREE.BoxGeometry(fw + 0.5, 2.4, fd + 0.5), new THREE.MeshBasicMaterial({ visible: false }));
-      hit.position.set(place.x, 1.2, place.z);
+      const hit = new THREE.Mesh(new THREE.BoxGeometry(fw + 0.6, 2.6, fd + 0.6), new THREE.MeshBasicMaterial({ visible: false }));
+      hit.position.set(place.x, 1.3, place.z);
       hit.userData.stationId = place.id;
       root.add(hit);
       this.hitList.push(hit);
-      // stand-point marker
       const markerMat = new THREE.MeshBasicMaterial({ color: C.teal, transparent: true, opacity: 0.0, depthWrite: false });
-      const marker = new THREE.Mesh(new THREE.RingGeometry(0.28, 0.4, 28), markerMat);
+      const marker = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.44, 32), markerMat);
       marker.rotation.x = -Math.PI / 2;
       marker.position.set(stand.x, 0.02, stand.z);
       root.add(marker);
-      this.stations.set(place.id, {
-        def, place, model, center: new THREE.Vector3(place.x, 0, place.z), stand, face, hit, marker, markerMat,
-        labelY: def.kind === 'bay' || def.kind === 'preop' ? 2.6 : def.kind === 'workstation' ? 2.75 : def.kind === 'scopeair' ? 2.5 : 2.3,
-        rot,
-      });
+      // name tag: just in front of the station, low down (like the concept art)
+      const isBed = def.kind === 'bay' || def.kind === 'preop';
+      const lp = isBed
+        ? new THREE.Vector3(place.x - 0.2, 0.55, place.z + 1.55)
+        : new THREE.Vector3(place.x + front.x * (def.d / 2 + 0.05), 0.5, place.z + front.z * (def.d / 2 + 0.05));
+      const topY = def.kind === 'workstation' ? 2.75 : isBed ? 2.2 : def.kind === 'sedaprep' ? 2.5 : def.kind === 'scopeair' ? 2.2 : def.kind === 'handoff' ? 3.2 : 1.9;
+      this.stations.set(place.id, { def, place, model, center: new THREE.Vector3(place.x, 0, place.z), stand, face, hit, marker, markerMat, labelPos: lp, topY, rot });
     }
 
-    // decor
     for (const d of env.decor) {
       if (d.kind === 'plant') {
-        const p = makePlant();
+        const p = makePlant(d.scale ?? 1);
         p.position.set(d.x, 0, d.z);
+        p.rotation.y = d.x * 1.7;
         root.add(p);
-        this.nav.blockCentered(d.x, d.z, 0.6, 0.6);
-        this.navWide.blockCentered(d.x, d.z, 0.6, 0.6);
+        const r = 0.7 * (d.scale ?? 1);
+        this.nav.blockCentered(d.x, d.z, r, r);
+        this.navWide.blockCentered(d.x, d.z, r, r);
+        this.blob(root, d.x, d.z, r + 0.5, r + 0.5);
       } else if (d.kind === 'bench') {
         const b = makeBench();
         b.position.set(d.x, 0, d.z);
@@ -144,7 +196,7 @@ export class World {
     const zw = z.x1 - z.x0, zd = z.z1 - z.z0;
     const zoneTex = canvasTex(`zone-${zw}-${zd}`, 512, Math.round(512 * zd / zw), (ctx, W, H) => {
       ctx.clearRect(0, 0, W, H);
-      ctx.fillStyle = 'rgba(43,168,160,0.16)';
+      ctx.fillStyle = 'rgba(43,168,160,0.14)';
       roundRect(ctx, 8, 8, W - 16, H - 16, 40); ctx.fill();
       ctx.setLineDash([26, 18]);
       ctx.lineWidth = 10;
@@ -154,15 +206,28 @@ export class World {
     this.zoneMat = new THREE.MeshBasicMaterial({ map: zoneTex, transparent: true, opacity: 0, depthWrite: false });
     this.zone = plane(zw, zd, this.zoneMat);
     this.zone.rotation.x = -Math.PI / 2;
-    this.zone.position.set((z.x0 + z.x1) / 2, 0.015, (z.z0 + z.z1) / 2);
+    this.zone.position.set((z.x0 + z.x1) / 2, 0.016, (z.z0 + z.z1) / 2);
     this.zone.receiveShadow = false;
     root.add(this.zone);
+
+    // "go here next" chevron
+    const arrow = new THREE.Group();
+    const am = new THREE.MeshStandardMaterial({ color: C.yellow, emissive: C.yellow, emissiveIntensity: 0.45, roughness: 0.4 });
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(0.28, 0.42, 4), am);
+    cone.rotation.x = Math.PI;
+    const stem = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.32, 0.16), am);
+    stem.position.y = 0.34;
+    arrow.add(cone, stem);
+    arrow.visible = false;
+    root.add(arrow);
+    this.arrow = arrow;
 
     // characters
     this.yolanda = makeHuman(YOLANDA_LOOK);
     this.yolanda.root.position.set(env.start.x, 0, env.start.z);
     this.yolanda.root.rotation.y = Math.PI;
     root.add(this.yolanda.root);
+    this.blob(this.yolanda.root, 0, 0, 1.0, 1.0);
 
     for (const p of level.patients) {
       const pr = makeLyingPatient(p.look);
@@ -173,6 +238,7 @@ export class World {
   makeNpc(id: string, look: HumanLook, x: number, z: number): Rig {
     const rig = makeHuman(look);
     rig.root.position.set(x, 0, z);
+    this.blob(rig.root, 0, 0, 1.0, 1.0);
     this.scene.getObjectByName('level')!.add(rig.root);
     this.npcs.set(id, rig);
     return rig;
@@ -185,7 +251,7 @@ export class World {
       case 'scopeair': return makeScopeAir();
       case 'supplies': return makeSupplies();
       case 'workstation': return makeWorkstation();
-      case 'bay': return makeBed(true);
+      case 'bay': return makeBed(true, '1');
       case 'preop': return makeBed(false);
       case 'handoff': return makeHandoff();
       case 'airready': return makeAirReady();
@@ -195,101 +261,104 @@ export class World {
 
   private buildRoom(env: EnvironmentDef, root: THREE.Group): void {
     const W = env.width, D = env.depth;
-    // floor
+    // glossy tiled floor
     const tileTex = canvasTex(`floor-${env.floor}`, 256, 256, (ctx, w, h) => {
       const a = env.floor === 'or' ? C.orFloorA : C.floorA;
       const b = env.floor === 'or' ? C.orFloorB : C.floorB;
       ctx.fillStyle = a; ctx.fillRect(0, 0, w, h);
       ctx.fillStyle = b; ctx.fillRect(0, 0, w / 2, h / 2); ctx.fillRect(w / 2, h / 2, w / 2, h / 2);
-      ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 3;
-      ctx.strokeRect(0, 0, w / 2, h / 2); ctx.strokeRect(w / 2, h / 2, w / 2, h / 2);
-      ctx.strokeRect(w / 2, 0, w / 2, h / 2); ctx.strokeRect(0, h / 2, w / 2, h / 2);
+      ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 2;
+      for (let i = 0; i <= 2; i++) { ctx.beginPath(); ctx.moveTo(i * w / 2, 0); ctx.lineTo(i * w / 2, h); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0, i * h / 2); ctx.lineTo(w, i * h / 2); ctx.stroke(); }
     });
     tileTex.wrapS = tileTex.wrapT = THREE.RepeatWrapping;
-    tileTex.repeat.set(W / 3, D / 3);
-    const floorMat = new THREE.MeshStandardMaterial({ map: tileTex, roughness: 0.55 });
+    tileTex.repeat.set(W / 2.4, D / 2.4);
+    const floorMat = new THREE.MeshStandardMaterial({ map: tileTex, roughness: 0.22, metalness: 0.0, envMapIntensity: 1.1 });
     this.floor = plane(W, D, floorMat);
     this.floor.rotation.x = -Math.PI / 2;
     this.floor.userData.floor = true;
     root.add(this.floor);
     this.hitList.push(this.floor);
-    // outer ground (the "diorama" base)
-    const base = at(rbox(W + 0.8, 0.4, D + 0.8, C.navyLight, 0.12, false), 0, -0.21, 0);
-    root.add(base);
+    root.add(at(rbox(W + 0.6, 0.5, D + 0.6, C.navyLight, 0.1, false), 0, -0.26, 0));
 
-    const wallM = mat(C.wall);
-    const trimM = mat(C.blue);
-    const capM = mat(C.wallTop);
-    const t = 0.25;
-    const mkWall = (len: number, h: number, x: number, z: number, alongX: boolean, trim = true) => {
+    // two visible walls (back + left), cream with a blue wainscot, like a cutaway diorama
+    const t = 0.32;
+    const mkWall = (len: number, x: number, z: number, alongX: boolean) => {
       const w = new THREE.Group();
-      const body = new THREE.Mesh(new THREE.BoxGeometry(alongX ? len : t, h, alongX ? t : len), wallM);
-      body.position.y = h / 2;
-      body.receiveShadow = true;
-      body.castShadow = true;
-      const cap = new THREE.Mesh(new THREE.BoxGeometry(alongX ? len + 0.02 : t + 0.04, 0.08, alongX ? t + 0.04 : len + 0.02), capM);
-      cap.position.y = h + 0.04;
-      w.add(body, cap);
-      if (trim) {
-        const tr = new THREE.Mesh(new THREE.BoxGeometry(alongX ? len : t + 0.02, 0.16, alongX ? t + 0.02 : len), trimM);
-        tr.position.y = 0.08;
-        const band = new THREE.Mesh(new THREE.BoxGeometry(alongX ? len : t + 0.02, 0.08, alongX ? t + 0.02 : len), mat(C.tealLight));
-        band.position.y = 1.15;
-        w.add(tr, band);
-      }
+      const geo = (h: number, extra = 0) => new THREE.BoxGeometry(alongX ? len : t + extra, h, alongX ? t + extra : len);
+      const upper = new THREE.Mesh(geo(WALL_H - 1.1), mat(C.cream, { rough: 0.85 }));
+      upper.position.y = 1.1 + (WALL_H - 1.1) / 2;
+      const lower = new THREE.Mesh(geo(1.1), mat(C.wainscot, { rough: 0.7 }));
+      lower.position.y = 0.55;
+      const rail = new THREE.Mesh(geo(0.1, 0.06), mat(C.white));
+      rail.position.y = 1.12;
+      const skirt = new THREE.Mesh(geo(0.18, 0.05), mat(C.blue));
+      skirt.position.y = 0.09;
+      const cap = new THREE.Mesh(geo(0.12, 0.06), mat(C.creamDark));
+      cap.position.y = WALL_H + 0.06;
+      for (const m of [upper, lower]) { m.receiveShadow = true; m.castShadow = true; }
+      w.add(upper, lower, rail, skirt, cap);
       w.position.set(x, 0, z);
       root.add(w);
       return w;
     };
-    // back wall (full), side walls (full height, they frame the diorama)
-    mkWall(W + t * 2, WALL_H, 0, -D / 2 - t / 2, true);
-    mkWall(D, WALL_H, -W / 2 - t / 2, 0, false);
-    mkWall(D, WALL_H * 0.42, W / 2 + t / 2, 0, false);
-    // front lip
-    const lip = at(rbox(W + t * 2, 0.22, t, C.wallTop, 0.03, false), 0, 0.11, D / 2 + t / 2);
-    root.add(lip);
+    mkWall(W + t, -t / 2, -D / 2 - t / 2, true);
+    mkWall(D + t, -W / 2 - t / 2, -t / 2, false);
+    // corner post
+    root.add(at(rbox(t + 0.06, WALL_H + 0.12, t + 0.06, C.creamDark, 0.03), -W / 2 - t / 2, (WALL_H + 0.12) / 2, -D / 2 - t / 2));
 
-    // door on the back wall
-    const dx = env.door.x;
-    const door = new THREE.Group();
-    door.add(at(rbox(1.5, 2.25, 0.12, C.blue, 0.04), 0, 1.13, 0));
-    door.add(at(rbox(1.36, 2.12, 0.14, C.blueLight, 0.04), 0, 1.1, 0.02));
-    door.add(at(rbox(0.4, 0.5, 0.15, '#cfeaff', 0.03), 0.25, 1.55, 0.03));
-    door.add(at(rbox(0.06, 0.3, 0.17, C.midGray, 0.02), -0.45, 1.05, 0.05));
-    door.position.set(dx, 0, -D / 2 + 0.02);
-    root.add(door);
-
-    // sign
-    const sign = textPlane(env.sign, 3.4, 0.62, C.navy, null, 'bold 92px system-ui, sans-serif', 'PEOPLE · SAFER CARE · CALM');
-    sign.position.set(env.stations.find((s) => s.id === 'sedaprep')?.x ?? 3.5, 2.35, -D / 2 + 0.03);
-    root.add(sign);
-    const line = at(rbox(2.8, 0.04, 0.02, C.blue, 0.01, false), sign.position.x, 2.18, -D / 2 + 0.04);
-    root.add(line);
-
+    const onWall = (o: THREE.Object3D, x: number, z: number, rot: number, y: number) => {
+      // rot 0 = back wall (faces +z), rot 1 = left wall (faces +x)
+      o.position.set(rot === 1 ? -W / 2 + 0.02 : x, y, rot === 1 ? z : -D / 2 + 0.02);
+      o.rotation.y = rot === 1 ? Math.PI / 2 : 0;
+      root.add(o);
+    };
     for (const d of env.decor) {
+      const rot = d.rot ?? 0;
       if (d.kind === 'window') {
         const g = new THREE.Group();
-        g.add(at(rbox(0.12, 1.4, 2.4, C.white, 0.04), 0, 1.6, 0));
-        const glassTex = canvasTex('window-sky', 128, 128, (ctx, w, h) => {
+        g.add(at(rbox(2.3, 1.6, 0.14, C.white, 0.06), 0, 0, 0));
+        const sky = canvasTex('window-view', 256, 180, (ctx, w, h) => {
           const gr = ctx.createLinearGradient(0, 0, 0, h);
-          gr.addColorStop(0, '#9fd4f5'); gr.addColorStop(1, '#e6f6ff');
+          gr.addColorStop(0, '#8fcaf2'); gr.addColorStop(1, '#dff3ff');
           ctx.fillStyle = gr; ctx.fillRect(0, 0, w, h);
-          ctx.fillStyle = '#8cc98a';
-          ctx.beginPath(); ctx.arc(30, 120, 34, 0, Math.PI * 2); ctx.fill();
-          ctx.beginPath(); ctx.arc(95, 128, 40, 0, Math.PI * 2); ctx.fill();
-          ctx.fillStyle = '#d3dde8'; ctx.fillRect(60, 60, 26, 60);
+          ctx.fillStyle = '#e8d9c9'; ctx.fillRect(150, 40, 70, 140);
+          ctx.fillStyle = '#b9cfe6'; for (let i = 0; i < 4; i++) for (let j = 0; j < 2; j++) ctx.fillRect(160 + j * 30, 52 + i * 30, 18, 18);
+          ctx.fillStyle = '#7cc46d';
+          for (const [cx, cy, r] of [[40, 160, 52], [100, 175, 48], [230, 178, 40], [10, 120, 36]]) { ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill(); }
+          ctx.fillStyle = '#5faa55';
+          for (const [cx, cy, r] of [[60, 150, 30], [120, 165, 26]]) { ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill(); }
         });
-        const glass = plane(2.2, 1.2, new THREE.MeshBasicMaterial({ map: glassTex }));
-        glass.position.set(0.07, 1.6, 0);
-        glass.rotation.y = Math.PI / 2;
-        g.add(glass);
-        g.add(at(rbox(0.14, 0.06, 2.3, C.white, 0.02), 0.02, 1.6, 0));
-        g.position.set(d.x + 0.02, 0, d.z);
-        root.add(g);
+        g.add(at(plane(2.06, 1.36, new THREE.MeshBasicMaterial({ map: sky })), 0, 0, 0.075));
+        g.add(at(rbox(0.07, 1.4, 0.18, C.white, 0.02), 0, 0, 0.06));
+        g.add(at(rbox(2.4, 0.1, 0.32, C.white, 0.03), 0, -0.82, 0.1));
+        onWall(g, d.x, d.z, rot, 1.85);
+      } else if (d.kind === 'door') {
+        const g = new THREE.Group();
+        g.add(at(rbox(1.6, 2.4, 0.12, C.white, 0.05), 0, 1.2, 0));
+        g.add(at(rbox(1.36, 2.22, 0.14, C.blue, 0.05), 0, 1.12, 0.02));
+        g.add(at(rbox(0.42, 0.6, 0.15, '#d6efff', 0.04), 0.25, 1.55, 0.03));
+        g.add(at(rbox(0.08, 0.34, 0.2, C.lightGray, 0.03), -0.48, 1.05, 0.06));
+        onWall(g, d.x, d.z, rot, 0);
+      } else if (d.kind === 'sign') {
+        const g = new THREE.Group();
+        g.add(at(rbox(3.2, 1.0, 0.08, C.white, 0.08), 0, 0, 0));
+        const tx = textPlane(env.sign, 2.9, 0.7, C.blueDeep, null, 'bold 120px system-ui, sans-serif', 'PEOPLE · SAFER CARE · HEALTHIER TOMORROW');
+        g.add(at(tx, 0, 0, 0.045));
+        onWall(g, d.x, d.z, rot, 2.25);
       } else if (d.kind === 'poster') {
-        const p = textPlane('Calm · Care', 1.4, 1.0, C.blueDeep, '#f7fbff', 'bold 70px system-ui, sans-serif', 'Progress Together ♥');
-        p.position.set(d.x, 1.75, d.z + 0.03);
-        root.add(p);
+        const g = new THREE.Group();
+        g.add(at(rbox(1.3, 1.5, 0.06, C.white, 0.06), 0, 0, 0));
+        const tex = canvasTex('poster-calm', 260, 300, (ctx, w, h) => {
+          ctx.fillStyle = '#f9fbff'; ctx.fillRect(0, 0, w, h);
+          ctx.fillStyle = '#3b68c2';
+          ctx.font = 'bold 44px system-ui, sans-serif';
+          ['Calm', 'Care', 'Progress', 'Together'].forEach((t2, i) => ctx.fillText(t2, 22, 64 + i * 52));
+          ctx.fillStyle = '#5a8ade';
+          ctx.beginPath(); ctx.moveTo(210, 70); ctx.bezierCurveTo(250, 30, 260, 90, 210, 120); ctx.bezierCurveTo(160, 90, 170, 30, 210, 70); ctx.fill();
+          ctx.fillRect(22, 270, 120, 8);
+        });
+        g.add(at(plane(1.18, 1.36, new THREE.MeshBasicMaterial({ map: tex })), 0, 0, 0.035));
+        onWall(g, d.x, d.z, rot, 1.95);
       }
     }
   }

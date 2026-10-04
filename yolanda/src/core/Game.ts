@@ -122,7 +122,7 @@ export class Game {
       nurse.root.rotation.y = ho.face + Math.PI;
     }
     if (level.staff.includes('tech')) {
-      const t = world.makeNpc('tech', TECH_LOOK, env.door.x + 1.4, env.door.z + 1.6);
+      const t = world.makeNpc('tech', TECH_LOOK, env.door.x + 1.2, env.door.z + 1.4);
       t.root.rotation.y = Math.PI;
     }
 
@@ -154,31 +154,33 @@ export class Game {
 
   private setupCamera(): void {
     const env = this.world.env;
-    const W = env.width / 2, D = env.depth / 2;
-    const room = [
-      new THREE.Vector3(-W, 0, -D), new THREE.Vector3(W, 0, -D), new THREE.Vector3(-W, 0, D), new THREE.Vector3(W, 0, D),
-      new THREE.Vector3(-W, 2.6, -D), new THREE.Vector3(W, 2.6, -D),
-    ];
-    // margins: [left, right, bottom, top] in NDC — leave room for the top bar and Prep Tray
+    const yaw = env.camYaw, pitch = env.camPitch;
     const q = new URLSearchParams(location.search);
-    const ryaw = Number(q.get('yaw') ?? 0), rpitch = Number(q.get('pitch') ?? 0.94);
-    this.cam.define('room', room, ryaw, rpitch, [-0.05, -0.05, 0.27, 0.25]);
-    const z = env.patientZone;
-    const zone = [
-      new THREE.Vector3(z.x0, 0, z.z0), new THREE.Vector3(z.x1, 0, z.z0), new THREE.Vector3(z.x0, 0, z.z1), new THREE.Vector3(z.x1, 0, z.z1),
-      new THREE.Vector3(z.x0, 2.4, z.z0), new THREE.Vector3(z.x1, 2.6, z.z0),
-    ];
-    this.cam.define('active', zone, 0, 0.9, [0.1, 0.1, 0.38, 0.46]);
+    const fy = Number(q.get('yaw') ?? yaw), fp = Number(q.get('pitch') ?? pitch);
+    // ROOM: frame the stations themselves (not the room corners) so everything is big.
+    const room: THREE.Vector3[] = [];
+    for (const sv of this.world.stations.values()) {
+      room.push(sv.center.clone(), new THREE.Vector3(sv.center.x, sv.topY, sv.center.z), sv.labelPos.clone());
+    }
+    // margins: [left, right, bottom, top] in NDC — top bar above, task + tray cards below
+    this.cam.define('room', room, fy, fp, [-0.28, -0.28, 0.5, 0.16]);
+    // ACTIVE: a gentle push toward the patient zone — same angle, never a rotation
+    const zone: THREE.Vector3[] = [];
+    for (const sv of this.world.stations.values()) {
+      if (!this.inZone(sv.stand)) continue;
+      zone.push(sv.center.clone(), new THREE.Vector3(sv.center.x, sv.topY, sv.center.z), sv.labelPos.clone());
+    }
+    this.cam.define('active', zone, fy, fp, [-0.15, -0.15, 0.5, 0.36]);
+    // PREP: push in on the supply cart — same angle again
     const sup = this.world.stations.get('supplies')!;
     const c = sup.center;
-    const frontYaw = (sup.rot * Math.PI) / 2;
-    const yaw = frontYaw + 0.5; // look at the cart's front, from the side Yolanda is not standing on
     const prepPts = [
-      new THREE.Vector3(c.x, 0.1, c.z - 0.95), new THREE.Vector3(c.x, 0.1, c.z + 0.95), new THREE.Vector3(c.x, 1.5, c.z - 0.95), new THREE.Vector3(c.x, 1.5, c.z + 0.95),
-      new THREE.Vector3(sup.stand.x, 1.9, sup.stand.z),
+      new THREE.Vector3(c.x - 1.2, 0, c.z - 0.8), new THREE.Vector3(c.x + 1.2, 0, c.z + 0.8),
+      new THREE.Vector3(c.x - 1.2, 1.7, c.z - 0.8), new THREE.Vector3(c.x + 1.2, 1.7, c.z + 0.8),
+      new THREE.Vector3(sup.stand.x, 2.0, sup.stand.z),
     ];
-    this.cam.define('prep', prepPts, yaw, 0.5, [0.02, 0.02, 1.12, 0.24]);
-    this.cam.setMode('prep', true);
+    this.cam.define('prep', prepPts, fy, fp, [0.06, 0.06, 1.05, 0.2]);
+    this.cam.setMode('room', true);
   }
 
   // ------------------------------------------------------------------ input
@@ -518,9 +520,10 @@ export class Game {
   }
 
   private procSpot(bay: StationView): Vec2 {
-    // foot of the bed, away from the anesthesia side
-    const along = bay.rot % 2 === 1 ? { x: 1, z: 0 } : { x: 0, z: 1 };
-    return this.world.nav.nearestWalkable({ x: bay.center.x - along.x * 1.9, z: bay.center.z - along.z * 1.9 - 0.1 });
+    // foot of the bed, slightly to the left (Yolanda works on the right)
+    const yaw = bay.rot * Math.PI / 2;
+    const fx = Math.sin(yaw), fz = Math.cos(yaw);
+    return this.world.nav.nearestWalkable({ x: bay.center.x + fx * 1.75 - fz * 0.45, z: bay.center.z + fz * 1.75 + fx * 0.45 });
   }
 
   private walk(rig: Rig, to: Vec2, speed: number, onArrive?: () => void): void {
@@ -699,7 +702,7 @@ export class Game {
           if (d > 1e-3) {
             bed.position.x += (dx / d) * step;
             bed.position.z += (dz / d) * step;
-            const want = Math.atan2(-dx, -dz) + Math.PI; // head trails, feet lead
+            const want = Math.atan2(dx, dz); // feet (+z) lead, head trails
             bed.rotation.y = lerpAngle(bed.rotation.y, want, Math.min(1, dt * 4));
             this.metrics.walk += step;
           }
@@ -708,8 +711,8 @@ export class Game {
         // Yolanda pushes from the head end
         const yaw = bed.rotation.y;
         const hx = Math.sin(yaw), hz = Math.cos(yaw);
-        rig.root.position.set(bed.position.x + hx * 1.6, 0, bed.position.z + hz * 1.6);
-        rig.root.rotation.y = yaw + Math.PI;
+        rig.root.position.set(bed.position.x - hx * 1.7, 0, bed.position.z - hz * 1.7);
+        rig.root.rotation.y = yaw;
         this.stepTimer -= dt;
         if (this.stepTimer <= 0) { this.stepTimer = 0.6; this.audio.play('cart'); }
         if (y.i >= y.path.length) {

@@ -7,12 +7,15 @@ interface Shot {
   dist: number;
   yaw: number;
   pitch: number;
+  /** Lens shift in NDC: centers the shot inside the area the HUD leaves free. */
+  sx: number;
+  sy: number;
 }
 
 /**
- * Fixed elevated 3/4 management camera. No free rotation: it eases between
- * framed "shots" (room overview, prep close-up, active-care framing) and
- * supports a subtle user zoom that drifts toward Yolanda.
+ * Fixed elevated 3/4 management camera. Every mode uses the SAME yaw/pitch, so
+ * switching modes is only a gentle push in/out (target + distance ease), never a
+ * rotation. HUD margins are handled with a projection lens shift.
  */
 export class CameraRig {
   readonly camera: THREE.PerspectiveCamera;
@@ -21,16 +24,16 @@ export class CameraRig {
   mode: CamMode = 'room';
   zoom = 1;
   private shots: Partial<Record<CamMode, { points: THREE.Vector3[]; yaw: number; pitch: number; margins: [number, number, number, number] }>> = {};
-  private follow = new THREE.Vector3();
   private shake = 0;
 
   constructor() {
-    this.camera = new THREE.PerspectiveCamera(36, 9 / 16, 0.5, 120);
-    this.cur = { target: new THREE.Vector3(), dist: 30, yaw: 0, pitch: 0.95 };
-    this.goal = { target: new THREE.Vector3(), dist: 30, yaw: 0, pitch: 0.95 };
+    this.camera = new THREE.PerspectiveCamera(30, 9 / 16, 0.5, 150);
+    const s = (): Shot => ({ target: new THREE.Vector3(), dist: 30, yaw: 0.5, pitch: 0.75, sx: 0, sy: 0 });
+    this.cur = s();
+    this.goal = s();
   }
 
-  /** Register what a mode must keep in view. margins = [left, right, bottom, top] in NDC units reserved for UI. */
+  /** margins = [left, right, bottom, top] in NDC units reserved for UI. */
   define(mode: CamMode, points: THREE.Vector3[], yaw: number, pitch: number, margins: [number, number, number, number]): void {
     this.shots[mode] = { points, yaw, pitch, margins };
   }
@@ -43,18 +46,17 @@ export class CameraRig {
 
   resize(w: number, h: number): void {
     this.camera.aspect = w / h;
-    // Narrow portrait screens get a slightly wider lens so stations stay big.
-    this.camera.fov = w / h < 0.7 ? 38 : 32;
+    this.camera.fov = w / h < 0.7 ? 32 : 28;
     this.camera.updateProjectionMatrix();
     this.recompute();
     this.copy(this.cur, this.goal);
   }
 
   private copy(a: Shot, b: Shot) {
-    a.target.copy(b.target); a.dist = b.dist; a.yaw = b.yaw; a.pitch = b.pitch;
+    a.target.copy(b.target); a.dist = b.dist; a.yaw = b.yaw; a.pitch = b.pitch; a.sx = b.sx; a.sy = b.sy;
   }
 
-  private place(cam: THREE.PerspectiveCamera, s: Shot) {
+  private place(cam: THREE.PerspectiveCamera, s: Shot, shift = true) {
     const cp = Math.cos(s.pitch), sp = Math.sin(s.pitch);
     cam.position.set(
       s.target.x + Math.sin(s.yaw) * cp * s.dist,
@@ -63,49 +65,56 @@ export class CameraRig {
     );
     cam.lookAt(s.target);
     cam.updateMatrixWorld(true);
+    cam.updateProjectionMatrix();
+    if (shift) {
+      // ndc.x += sx: content moves toward the free area of the screen
+      cam.projectionMatrix.elements[8] -= s.sx;
+      cam.projectionMatrix.elements[9] -= s.sy;
+      cam.projectionMatrixInverse.copy(cam.projectionMatrix).invert();
+    }
   }
 
-  /** Solve distance + target so all points fit inside the margins. */
+  /** Solve target + distance so the points fill the free area (symmetric fit, then lens shift). */
   recompute(): void {
     const def = this.shots[this.mode];
     if (!def) return;
     const tmp = this.camera.clone();
-    const centroid = new THREE.Vector3();
-    for (const p of def.points) centroid.add(p);
-    centroid.multiplyScalar(1 / def.points.length);
-    const shot: Shot = { target: centroid.clone(), dist: 20, yaw: def.yaw, pitch: def.pitch };
     const [ml, mr, mb, mt] = def.margins;
+    const halfW = (2 - ml - mr) / 2, halfH = (2 - mb - mt) / 2;
+    const target = new THREE.Vector3();
+    for (const p of def.points) target.add(p);
+    target.multiplyScalar(1 / def.points.length);
+    target.y = Math.min(target.y, 1.0);
+    const shot: Shot = { target, dist: 20, yaw: def.yaw, pitch: def.pitch, sx: (ml - mr) / 2, sy: (mb - mt) / 2 };
     const v = new THREE.Vector3();
-    for (let iter = 0; iter < 3; iter++) {
-      let lo = 2, hi = 120;
-      for (let i = 0; i < 28; i++) {
-        const mid = (lo + hi) / 2;
-        shot.dist = mid;
-        this.place(tmp, shot);
-        let ok = true;
-        for (const p of def.points) {
-          v.copy(p).project(tmp);
-          const halfW = (2 - ml - mr) / 2, halfH = (2 - mb - mt) / 2;
-          if (v.z > 1 || Math.abs(v.x - (ml - mr) / 2) > halfW || Math.abs(v.y - (mb - mt) / 2) > halfH) { ok = false; break; }
-        }
-        if (ok) hi = mid; else lo = mid;
+    const right = new THREE.Vector3(Math.cos(shot.yaw), 0, -Math.sin(shot.yaw));
+    const upGround = new THREE.Vector3(-Math.sin(shot.yaw), 0, -Math.cos(shot.yaw));
+    const fits = () => {
+      this.place(tmp, shot, false);
+      for (const p of def.points) {
+        v.copy(p).project(tmp);
+        if (v.z > 1 || Math.abs(v.x) > halfW || Math.abs(v.y) > halfH) return false;
+      }
+      return true;
+    };
+    for (let iter = 0; iter < 6; iter++) {
+      let lo = 1, hi = 150;
+      for (let i = 0; i < 30; i++) {
+        shot.dist = (lo + hi) / 2;
+        if (fits()) hi = shot.dist; else lo = shot.dist;
       }
       shot.dist = hi;
-      this.place(tmp, shot);
-      // re-center the projected bounding box inside the allowed area
+      this.place(tmp, shot, false);
       let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
       for (const p of def.points) {
         v.copy(p).project(tmp);
         x0 = Math.min(x0, v.x); x1 = Math.max(x1, v.x); y0 = Math.min(y0, v.y); y1 = Math.max(y1, v.y);
       }
-      const wantX = (ml - mr) / 2, wantY = (mb - mt) / 2;
-      const dxN = (x0 + x1) / 2 - wantX, dyN = (y0 + y1) / 2 - wantY;
-      // convert NDC offset to world offset on the ground plane (approx.)
+      const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+      if (Math.abs(cx) < 0.002 && Math.abs(cy) < 0.002) break;
       const halfHWorld = Math.tan(THREE.MathUtils.degToRad(tmp.fov / 2)) * shot.dist;
-      const right = new THREE.Vector3(Math.cos(shot.yaw), 0, -Math.sin(shot.yaw));
-      const fwd = new THREE.Vector3(-Math.sin(shot.yaw), 0, -Math.cos(shot.yaw));
-      shot.target.addScaledVector(right, dxN * halfHWorld * tmp.aspect);
-      shot.target.addScaledVector(fwd, (dyN * halfHWorld) / Math.sin(shot.pitch));
+      shot.target.addScaledVector(right, cx * halfHWorld * tmp.aspect * 0.9);
+      shot.target.addScaledVector(upGround, (cy * halfHWorld / Math.sin(shot.pitch)) * 0.9);
     }
     this.copy(this.goal, shot);
   }
@@ -115,15 +124,16 @@ export class CameraRig {
   }
 
   update(dt: number, focus?: THREE.Vector3): void {
-    const k = 1 - Math.exp(-dt * 3.2);
+    const k = 1 - Math.exp(-dt * 2.6);
     const z = this.mode === 'prep' ? 1 : this.zoom;
-    if (focus) this.follow.copy(focus);
     const tgt = this.goal.target.clone();
     if (z < 1 && focus) tgt.lerp(new THREE.Vector3(focus.x, tgt.y, focus.z), (1 - z) * 2.2);
     this.cur.target.lerp(tgt, k);
     this.cur.dist += (this.goal.dist * z - this.cur.dist) * k;
-    this.cur.yaw += (this.goal.yaw - this.cur.yaw) * k;
-    this.cur.pitch += (this.goal.pitch - this.cur.pitch) * k;
+    this.cur.yaw = this.goal.yaw;
+    this.cur.pitch = this.goal.pitch;
+    this.cur.sx += (this.goal.sx - this.cur.sx) * k;
+    this.cur.sy += (this.goal.sy - this.cur.sy) * k;
     this.place(this.camera, this.cur);
     if (this.shake > 0.001) {
       this.camera.position.x += (Math.random() - 0.5) * this.shake;
