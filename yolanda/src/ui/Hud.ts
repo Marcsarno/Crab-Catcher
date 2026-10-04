@@ -412,12 +412,16 @@ export class Hud implements GameUI {
     const key = `${title}|${sug.text}|${sug.task?.key}|${doneN}|${g.ts.list().filter((x) => x.state === 'running' && !x.def.auto).length}|` + open.map((t) => `${t.key}:${t.state}:${timeLeft(t)}`).join('|') + g.inv.items.join();
     if (key === this.lastTasks) return;
     this.lastTasks = key;
-    const MAX = 4;
+    // long hint text wraps to 3 lines: show one fewer row so the card never grows over the room
+    const MAX = sug.text && g.tutorialOn && sug.text.length > 36 ? 3 : 4;
     const nRun = g.ts.list().filter((x) => x.state === 'running' && !x.def.auto).length;
-    let html = `<div class="tk-head"><b>${title}</b>${nRun ? `<em class="run">⚙ ${nRun} running</em>` : ''}<span>${doneN}/${rows.length}</span></div>`;
+    let html = `<div class="tk-head"><b>${title}</b>${nRun ? `<em class="run" title="Machines running">⚙ ${nRun}</em>` : ''}<span>${doneN}/${rows.length}</span></div>`;
     if (sug.text && g.tutorialOn) html += `<div class="tk-next ${sug.urgent ? 'urgent' : ''}"><i>${sug.urgent ? '!' : '➜'}</i><span>${sug.text}</span></div>`;
     html += '<ul>';
-    for (const t of open.slice(0, MAX)) {
+    const shown = open.slice(0, MAX);
+    // the suggested next task is always on the card, even when the list is trimmed
+    if (g.tutorialOn && sug.task && open.includes(sug.task) && !shown.includes(sug.task)) shown[MAX - 1] = sug.task;
+    for (const t of shown) {
       const right = timeLeft(t);
       const missing = t.state === 'available' ? g.inv.missing(t.def.requiredItems) : [];
       const cls = [t.state, t === sug.task && g.tutorialOn ? 'next' : '', t.def.optional ? 'optional' : '', t.event ? 'event' : '', t.state === 'locked' ? 'later' : ''].join(' ');
@@ -459,10 +463,18 @@ export class Hud implements GameUI {
     const g = this.g;
     const page = g.mode === 'room' && g.canPage(c);
     const staff = g.level.staff.length > 0 && g.mode === 'room';
-    const key = `${page}|${staff}|${c.id}`;
+    const ff = g.mode === 'room';
+    const key = `${page}|${staff}|${c.id}|${ff}|${g.speed}`;
     if (key === this.lastSide) return;
     this.lastSide = key;
     this.sideEl.innerHTML = '';
+    if (ff) {
+      const fast = g.speed > 1;
+      const b = h('button', `pill-btn ${fast ? 'yellow' : 'navy'} ff`, fast ? `⏩ ${g.speed}×` : '▶ 1×');
+      b.setAttribute('aria-label', 'Toggle fast-forward');
+      b.onclick = () => { g.speed = g.speed > 1 ? 1 : 2; this.g.audio.play('click'); };
+      this.sideEl.append(b);
+    }
     if (page) {
       const b = h('button', 'pill-btn yellow pulse', `${ICON.phone}Page ${c.template.proceduralist.name}`);
       b.onclick = () => g.page(c);
@@ -532,7 +544,7 @@ export class Hud implements GameUI {
       let bTxt = '', bCls = '';
       if (ev) { bTxt = `! ${ev.event!.def.bubble}`; bCls = 'alert'; }
       else if (ready) { bTxt = 'READY'; bCls = 'ready'; }
-      else if (running) { bTxt = `${Math.ceil(running.processLeft)}s`; bCls = ''; }
+      else if (running) { bTxt = `${Math.ceil(running.processLeft)}s`; bCls = 'run'; badge.style.setProperty('--p', `${Math.round((1 - running.processLeft / Math.max(1, running.def.process ?? 1)) * 100)}%`); }
       else if (id === 'supplies' && g.mode === 'room' && g.glowItems().size && g.focusCase().phase === 'prep') { bTxt = 'Items needed'; bCls = 'info'; }
       if (badge.textContent !== bTxt) badge.textContent = bTxt;
       badge.className = `badge ${bCls} ${bTxt ? '' : 'hidden'}`;

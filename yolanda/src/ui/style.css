@@ -529,3 +529,7 @@ button { font-family: inherit; }
 .tk-head b, .tk-head .run { white-space: nowrap; flex: none; }
 .tk-head .run { margin-right: auto; margin-left: 8px; }
 .tk-head > span { margin-left: 8px; }
+
+/* running machine badge doubles as a progress bar */
+.lbl .badge.run { min-width: 40px; text-align: center; background: linear-gradient(90deg, #f2a900 var(--p, 0%), #fff1c9 var(--p, 0%)); color: var(--navy); border: 1.5px solid #fff; box-shadow: 0 2px 6px rgba(20,40,70,.25); }
+.pill-btn.ff { min-width: 74px; justify-content: center; }
