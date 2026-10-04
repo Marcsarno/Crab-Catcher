@@ -62,11 +62,12 @@ export interface GameUI {
 }
 
 const YOLANDA_SPEED = 3.1;
-const PROC_LOOK: HumanLook = { skin: '#8d5a3b', hair: '#1f1a17', hairStyle: 'cap', capColor: '#4a7fc6', top: '#4a7fc6', pants: '#3f6fb0', shoes: '#e8eef3', mask: true };
-const PACU_LOOK: HumanLook = { skin: '#e6b48f', hair: '#3a2a20', hairStyle: 'bun', top: C.green, pants: '#3fa877', shoes: '#f4f6f8', badge: true };
-const CIRC_LOOK: HumanLook = { skin: '#b07850', hair: '#2a1d16', hairStyle: 'cap', capColor: '#e08aa8', top: '#e08aa8', pants: '#c86f8f', shoes: '#f4f6f8', badge: true };
-const ASST_LOOK: HumanLook = { skin: '#f0c7a8', hair: '#4a3322', hairStyle: 'cap', capColor: '#4a7fc6', top: '#4a7fc6', pants: '#3f6fb0', shoes: '#e8eef3', mask: true };
-const TECH_LOOK: HumanLook = { skin: '#c9906a', hair: '#2a211c', hairStyle: 'short', top: '#6a93c9', pants: '#5a82b8', shoes: '#f4f6f8', badge: true };
+const PROC_LOOK: HumanLook = { skin: '#8d5a3b', hair: '#1f1a17', hairStyle: 'cap', capColor: '#4a7fc6', top: '#4a7fc6', pants: '#3f6fb0', shoes: '#e8eef3', mask: true, model: 'male-a', outfit: { top: '#4f86d9', pants: '#3e6fc0' } };
+const SURGEON_LOOK: HumanLook = { ...PROC_LOOK, model: 'female-e', outfit: { top: '#4f86d9', pants: '#3e6fc0' } };
+const PACU_LOOK: HumanLook = { skin: '#e6b48f', hair: '#3a2a20', hairStyle: 'bun', top: C.green, pants: '#3fa877', shoes: '#f4f6f8', badge: true, model: 'female-b', outfit: { top: '#4cc38a', pants: '#36a273' } };
+const CIRC_LOOK: HumanLook = { skin: '#b07850', hair: '#2a1d16', hairStyle: 'cap', capColor: '#e08aa8', top: '#e08aa8', pants: '#c86f8f', shoes: '#f4f6f8', badge: true, model: 'female-c', outfit: { top: '#e58fb0', pants: '#c86f8f' } };
+const ASST_LOOK: HumanLook = { skin: '#f0c7a8', hair: '#4a3322', hairStyle: 'cap', capColor: '#4a7fc6', top: '#4a7fc6', pants: '#3f6fb0', shoes: '#e8eef3', mask: true, model: 'male-e', outfit: { top: '#4f86d9', pants: '#3e6fc0' } };
+const TECH_LOOK: HumanLook = { skin: '#c9906a', hair: '#2a211c', hairStyle: 'short', top: '#6a93c9', pants: '#5a82b8', shoes: '#f4f6f8', badge: true, model: 'male-f', outfit: { top: '#7d8fb8', pants: '#5a6b93' } };
 
 export class Game {
   readonly ts: TaskSystem;
@@ -544,7 +545,8 @@ export class Game {
     if (this.procSpawned.has(c.id)) return;
     this.procSpawned.add(c.id);
     const env = this.world.env;
-    const rig = this.world.makeNpc(`proc-${c.id}`, PROC_LOOK, env.door.x, env.door.z);
+    const isOR = this.world.stations.get(c.patient.bay)?.def.kind === 'ortable';
+    const rig = this.world.makeNpc(`proc-${c.id}`, isOR ? SURGEON_LOOK : PROC_LOOK, env.door.x, env.door.z);
     const bay = this.world.stations.get(c.patient.bay)!;
     const spot = this.procSpot(bay);
     this.walk(rig, spot, 2.4, () => {

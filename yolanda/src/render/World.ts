@@ -3,6 +3,7 @@ import type { EnvironmentDef, LevelDef, StationDef, StationPlacement } from '../
 import { STATIONS } from '../data/stations';
 import { NavGrid, type Vec2 } from '../nav/NavGrid';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { hasModel, prop, type ModelName } from './assets';
 import { C, at, canvasTex, mat, plane, rbox, textPlane } from './palette';
 import {
   makeAirReady, makeBed, makeBench, makeChartDesk, makeHandoff, makePlant, makeScopeAir, makeSedaPrep,
@@ -184,8 +185,26 @@ export class World {
     }
 
     for (const d of env.decor) {
-      if (d.kind === 'plant') {
-        const p = makePlant(d.scale ?? 1);
+      const kenneyProps: Partial<Record<string, [ModelName, number, number, Record<string, string>?]>> = {
+        trash: ['trashcan', 0.85, 0.5],
+        bookcase: ['bookcase', 2.0, 1.0, { wood: '#f7f4ee', woodDark: '#5a8ade' }],
+        coatrack: ['coatRack', 2.0, 0.5],
+        defib: ['defibrillator', 0.9, 0.7],
+        wheelchair: ['wheelchair', 1.25, 1.0],
+        lamp: ['lampFloor', 2.2, 0.5],
+      };
+      const kp = kenneyProps[d.kind];
+      if (kp && hasModel(kp[0])) {
+        const p = prop(kp[0], kp[1], kp[3]);
+        p.position.set(d.x, 0, d.z);
+        p.rotation.y = (d.rot ?? 0) * Math.PI / 2;
+        root.add(p);
+        this.nav.blockCentered(d.x, d.z, kp[2], kp[2]);
+        this.navWide.blockCentered(d.x, d.z, kp[2], kp[2]);
+        this.blob(root, d.x, d.z, kp[2] + 0.5, kp[2] + 0.5);
+      } else if (d.kind === 'plant') {
+        const usePack = hasModel('plantTopiary');
+        const p = usePack ? prop(d.x > 0 ? 'plantTopiary' : 'plantBall', 1.5 * (d.scale ?? 1)) : makePlant(d.scale ?? 1);
         p.position.set(d.x, 0, d.z);
         p.rotation.y = d.x * 1.7;
         root.add(p);

@@ -79,7 +79,7 @@ export interface EnvironmentDef {
   /** Door where visitors enter. */
   door: { x: number; z: number };
   /** Decorative props: plants, posters, windows. */
-  decor: { kind: 'plant' | 'window' | 'poster' | 'bench' | 'lights' | 'sink' | 'sign' | 'door' | 'boxes'; x: number; z: number; rot?: number; scale?: number }[];
+  decor: { kind: 'plant' | 'window' | 'poster' | 'bench' | 'lights' | 'sink' | 'sign' | 'door' | 'boxes' | 'trash' | 'bookcase' | 'coatrack' | 'defib' | 'wheelchair' | 'lamp'; x: number; z: number; rot?: number; scale?: number }[];
   floor: 'tile' | 'or';
   /** Fixed camera yaw/pitch (radians). The camera NEVER rotates away from these. */
   camYaw: number;
@@ -213,7 +213,7 @@ export interface PatientDef {
   /** Seconds after the case is ready that the proceduralist arrives on their own. */
   proceduralistArrival: number;
   modifiers: string[];
-  look: { skin: string; hair: string; gown: string; hairStyle: 'short' | 'bun' | 'curly' | 'bald' };
+  look: { skin: string; hair: string; gown: string; hairStyle: 'short' | 'bun' | 'curly' | 'bald'; model?: string };
   anxious?: boolean;
 }
 

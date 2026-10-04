@@ -448,3 +448,9 @@ button { font-family: inherit; }
   background: linear-gradient(180deg, #1f3e63, #152c47); border: 2.5px solid rgba(127, 190, 240, 0.55); box-shadow: 0 12px 30px rgba(10, 25, 45, 0.4); }
 .logo h1 { font-size: 44px; }
 .logo h2 { color: #7fd3c9; font-size: 13px; letter-spacing: .32em; }
+
+.screen.loading { z-index: 40; background: linear-gradient(180deg, #2c4a6b, #152c47); justify-content: center; gap: 22px; }
+.screen.loading .logo { margin: 0; }
+.load-bar { width: 62%; height: 10px; border-radius: 6px; background: rgba(255,255,255,0.15); overflow: hidden; }
+.load-bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #2ba8a0, #7fd3c9); transition: width .2s; }
+.load-txt { color: #9fd0ff; font-weight: 700; font-size: 14px; margin: 0; }

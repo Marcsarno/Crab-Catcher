@@ -17,7 +17,7 @@ export const LEVELS: LevelDef[] = [
     environmentId: 'endo', caseTemplateId: 'routineEndo',
     patients: [{
       id: 'A', name: 'Mr. Alvarez', age: '54', bay: 'bay1', arrival: 0, proceduralistArrival: 105, modifiers: [],
-      look: { skin: '#c98e62', hair: '#2e2420', gown: '#8fb8e8', hairStyle: 'short' },
+      look: { skin: '#c98e62', hair: '#2e2420', gown: '#8fb8e8', hairStyle: 'short', model: 'male-d' },
     }],
     events: endoEvents,
     staff: [],
@@ -40,11 +40,11 @@ export const LEVELS: LevelDef[] = [
     patients: [
       {
         id: 'A', name: 'Ms. Chen', age: '61', bay: 'bay1', arrival: 0, proceduralistArrival: 105, modifiers: [],
-        look: { skin: '#e8c4a0', hair: '#5a5a5a', gown: '#8fb8e8', hairStyle: 'bun' },
+        look: { skin: '#e8c4a0', hair: '#5a5a5a', gown: '#8fb8e8', hairStyle: 'bun', model: 'female-d' },
       },
       {
         id: 'B', name: 'Mr. Haddad', age: '47', bay: 'bay1', preopBay: 'bay2', arrival: 35, proceduralistArrival: 250, modifiers: [],
-        look: { skin: '#a8724c', hair: '#1f1a17', gown: '#a6d3c7', hairStyle: 'curly' },
+        look: { skin: '#a8724c', hair: '#1f1a17', gown: '#a6d3c7', hairStyle: 'curly', model: 'male-b' },
       },
     ],
     events: endoEvents,
@@ -91,7 +91,7 @@ export const LEVELS: LevelDef[] = [
     environmentId: 'endo3', caseTemplateId: 'routineEndo',
     patients: [{
       id: 'A', name: 'Ms. Okoye', age: '58', bay: 'bay1', arrival: 0, proceduralistArrival: 120, modifiers: ['airwayAlert'],
-      look: { skin: '#7a4b30', hair: '#1a1412', gown: '#8fb8e8', hairStyle: 'curly' },
+      look: { skin: '#7a4b30', hair: '#1a1412', gown: '#8fb8e8', hairStyle: 'curly', model: 'female-a' },
     }],
     events: endoEvents,
     staff: [],
@@ -106,7 +106,7 @@ export const LEVELS: LevelDef[] = [
     environmentId: 'or', caseTemplateId: 'generalOR',
     patients: [{
       id: 'A', name: 'Mr. Brooks', age: '63', bay: 'ortable', arrival: 0, proceduralistArrival: 150, modifiers: [],
-      look: { skin: '#d9a77f', hair: '#8a8a8a', gown: '#8fb8e8', hairStyle: 'short' },
+      look: { skin: '#d9a77f', hair: '#8a8a8a', gown: '#8fb8e8', hairStyle: 'short', model: 'male-d' },
     }],
     events: [
       { at: 6, id: 'vitals1', name: 'Chart vitals', stationId: 'workstation', duration: 1.5, window: 14, scoreCategory: 'safety', bubble: 'Vitals due', anim: 'monitor' },

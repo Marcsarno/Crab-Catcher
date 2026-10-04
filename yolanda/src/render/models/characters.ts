@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import { C, at, capsule, mat, rbox, sph, torus, cyl, uniqueMat } from '../palette';
+import { C, at, capsule, mat, rbox, sph, torus, cyl, tube, uniqueMat } from '../palette';
 import type { AnimName } from '../../core/types';
+import { character, hasModel, type ModelName, type Outfit } from '../assets';
 
 // Chunky stylized people: oversized heads and hands, simple color blocking.
 
@@ -16,6 +17,9 @@ export interface HumanLook {
   badge?: boolean;
   tie?: string;
   scale?: number;
+  /** External rigged model (Kenney Mini Characters) used when loaded. */
+  model?: ModelName;
+  outfit?: Outfit;
 }
 
 export interface Rig {
@@ -35,12 +39,54 @@ export interface Rig {
   t: number;
   /** blend weight for carry pose */
   carry: number;
+  /** Present when the rig is an imported, skeletal-animated model. */
+  gl?: { mixer: THREE.AnimationMixer; actions: Map<string, THREE.AnimationAction>; cur: string };
 }
 
 export const YOLANDA_LOOK: HumanLook = {
   skin: '#f0c39c', hair: '#8a6239', hairStyle: 'ponytail', top: C.teal, pants: '#23968f',
   shoes: '#f4f6f8', badge: true, tie: '#e05656',
+  model: 'female-f', outfit: { top: '#33c4b8', pants: '#27aaa0', shoes: '#f4f6f8' },
 };
+
+/** Map game animation names to Kenney clip names. */
+const CLIP_FOR: Record<AnimName, string> = {
+  idle: 'idle', walk: 'walk', carry: 'holding-both', interact: 'interact-right', drawer: 'pick-up', machine: 'interact-right',
+  monitor: 'interact-left', chart: 'interact-left', talk: 'emote-yes', push: 'walk', handoff: 'emote-yes', wait: 'idle',
+};
+
+function makeModelRig(look: HumanLook): Rig | null {
+  if (!look.model || !hasModel(look.model)) return null;
+  const cm = character(look.model, look.outfit ?? null, 1.75 * (look.scale ?? 1));
+  if (!cm) return null;
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  root.add(body);
+  body.add(cm.object);
+  const actions = new Map<string, THREE.AnimationAction>();
+  for (const [name, clip] of cm.clips) actions.set(name, cm.mixer.clipAction(clip));
+  actions.get('idle')?.play();
+  // carried Prep Tray in front of the chest
+  const tray = new THREE.Group();
+  tray.add(rbox(0.7, 0.05, 0.42, C.lightGray, 0.02));
+  const trayTokens: THREE.Mesh[] = [];
+  for (let i = 0; i < 4; i++) {
+    const tok = rbox(0.13, 0.13, 0.13, uniqueMat('#ffffff'), 0.04);
+    tok.position.set(-0.25 + i * 0.165, 0.09, 0);
+    tok.visible = false;
+    tray.add(tok);
+    trayTokens.push(tok);
+  }
+  tray.position.set(0, 0.8, 0.5);
+  tray.visible = false;
+  body.add(tray);
+  const dummy = () => new THREE.Group();
+  return {
+    root, body, torso: dummy(), head: dummy(), armL: dummy(), armR: dummy(), legL: dummy(), legR: dummy(),
+    tray, trayTokens, eyes: [], mouth: new THREE.Mesh(), anim: 'idle', t: Math.random() * 3, carry: 0,
+    gl: { mixer: cm.mixer, actions, cur: 'idle' },
+  };
+}
 
 function face(head: THREE.Group, look: HumanLook, r: number) {
   const eyes: THREE.Object3D[] = [];
@@ -138,6 +184,8 @@ function hair(head: THREE.Group, look: HumanLook, r: number) {
 }
 
 export function makeHuman(look: HumanLook): Rig {
+  const modelRig = makeModelRig(look);
+  if (modelRig) return modelRig;
   const root = new THREE.Group();
   const body = new THREE.Group();
   root.add(body);
@@ -270,6 +318,24 @@ const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
 /** Procedural animation. Called every frame. */
 export function animateRig(rig: Rig, dt: number, carrying: boolean): void {
   rig.t += dt;
+  if (rig.gl) {
+    const gl = rig.gl;
+    let want = CLIP_FOR[rig.anim] ?? 'idle';
+    const holding = carrying && (rig.anim === 'idle' || rig.anim === 'wait');
+    if (holding) want = 'holding-both';
+    if (!gl.actions.has(want)) want = 'idle';
+    if (want !== gl.cur) {
+      const next = gl.actions.get(want)!;
+      const prev = gl.actions.get(gl.cur);
+      next.reset().setEffectiveWeight(1).fadeIn(0.18).play();
+      prev?.fadeOut(0.18);
+      gl.cur = want;
+    }
+    gl.mixer.update(dt);
+    rig.carry = carrying ? 1 : 0;
+    rig.tray.visible = carrying && (rig.anim === 'walk' || rig.anim === 'idle' || rig.anim === 'wait');
+    return;
+  }
   const t = rig.t;
   const a = rig.anim;
   rig.carry = lerp(rig.carry, carrying && a !== 'push' ? 1 : 0, Math.min(1, dt * 8));
@@ -386,7 +452,42 @@ export interface PatientRig {
 }
 
 /** A patient lying on their back, head toward local +x. */
-export function makeLyingPatient(look: { skin: string; hair: string; gown: string; hairStyle: string }): PatientRig {
+function makeModelPatient(look: { skin: string; gown: string; model?: string }): PatientRig | null {
+  const name = look.model as ModelName | undefined;
+  if (!name || !hasModel(name)) return null;
+  const cm = character(name, { top: look.gown, pants: look.gown, shoes: '#e9eef3' }, 1.6);
+  if (!cm) return null;
+  // freeze in the first idle frame (arms down) and lay the figure on its back, head toward +x
+  const idle = cm.clips.get('idle');
+  if (idle) { const act = cm.mixer.clipAction(idle); act.play(); cm.mixer.update(0); act.paused = true; }
+  const root = new THREE.Group();
+  const pivot = new THREE.Group();
+  pivot.rotation.set(-Math.PI / 2, 0, -Math.PI / 2);
+  pivot.position.set(-0.95, 0.22, 0);
+  pivot.add(cm.object);
+  root.add(pivot);
+  const blanket = rbox(1.15, 0.2, 0.95, C.blueLight, 0.08);
+  blanket.position.set(-0.5, 0.42, 0);
+  const warmBlanket = rbox(1.0, 0.22, 1.0, '#f2b880', 0.08);
+  warmBlanket.position.set(-0.4, 0.46, 0);
+  warmBlanket.visible = false;
+  const drape = rbox(1.5, 0.24, 1.25, '#2fae9d', 0.08);
+  drape.position.set(-0.3, 0.5, 0);
+  drape.visible = false;
+  const monitored = new THREE.Group();
+  const clip = rbox(0.12, 0.09, 0.12, C.red, 0.03, false);
+  clip.position.set(0.2, 0.6, 0.48);
+  const lead = tube([new THREE.Vector3(0.2, 0.6, 0.48), new THREE.Vector3(0.4, 0.75, 0.75), new THREE.Vector3(0.8, 0.9, 0.7)], 0.02, C.teal);
+  monitored.add(clip, lead);
+  monitored.visible = false;
+  root.add(blanket, warmBlanket, drape, monitored);
+  root.traverse((o) => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).castShadow = true; });
+  return { root, head: pivot, eyes: [], mouth: new THREE.Mesh(), brows: [], blanket, warmBlanket, drape, state: 'awake', t: 0, monitored };
+}
+
+export function makeLyingPatient(look: { skin: string; hair: string; gown: string; hairStyle: string; model?: string }): PatientRig {
+  const mp = makeModelPatient(look);
+  if (mp) return mp;
   const root = new THREE.Group();
   root.scale.setScalar(1.12);
   const body = rbox(1.5, 0.3, 0.62, look.gown, 0.14);
@@ -475,8 +576,12 @@ export function animatePatient(p: PatientRig, dt: number): void {
   p.mouth.visible = !asleep;
   // breathing
   p.blanket.scale.y = 1 + Math.sin(t * (asleep ? 1.6 : 2.4)) * 0.06;
-  if (p.state === 'stirring') p.head.rotation.y = Math.sin(t * 5) * 0.15;
-  else p.head.rotation.y = 0;
+  if (p.eyes.length) {
+    if (p.state === 'stirring') p.head.rotation.y = Math.sin(t * 5) * 0.15;
+    else p.head.rotation.y = 0;
+  } else {
+    p.root.position.y = p.state === 'stirring' ? Math.abs(Math.sin(t * 6)) * 0.05 : 0;
+  }
 }
 
 export function tintTrayToken(m: THREE.Mesh, color: string | null): void {

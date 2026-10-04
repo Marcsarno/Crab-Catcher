@@ -47,6 +47,9 @@ const endoDecor: EnvironmentDef['decor'] = [
   { kind: 'plant', x: -6.0, z: -0.6, scale: 1.2 },
   { kind: 'plant', ...uv(-4.4, 5.6), scale: 1.2 },
   { kind: 'plant', ...uv(4.7, 5.6), scale: 1.3 },
+  { kind: 'trash', x: -6.0, z: -4.8 },
+  { kind: 'coatrack', x: -6.05, z: -6.6 },
+  { kind: 'wheelchair', ...uv(4.3, -1.6), rot: 3 },
 ];
 
 // Operating room: bigger, prep machines up top, the surgical field below.
@@ -75,6 +78,9 @@ export const ENVIRONMENTS: Record<string, EnvironmentDef> = {
       { kind: 'poster', x: -7.5, z: -3.0, rot: 1 },
       { kind: 'plant', ...uv(4.4, -3.4), scale: 1.2 },
       { kind: 'plant', ...uv(-4.6, -6.0), scale: 1.1 },
+      { kind: 'defib', ...uv(0.9, -2.6), rot: 0 },
+      { kind: 'trash', ...uv(-1.2, 6.2) },
+      { kind: 'lamp', ...uv(4.3, 0.6) },
     ],
   },
   endo: {

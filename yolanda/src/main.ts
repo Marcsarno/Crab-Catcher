@@ -9,6 +9,7 @@ import { Hud } from './ui/Hud';
 import { Screens } from './ui/Screens';
 import { DebugPanel } from './ui/Debug';
 import { LEVELS } from './data/levels';
+import { preloadAssets } from './render/assets';
 import type { LevelDef } from './core/types';
 
 class App {
@@ -64,9 +65,21 @@ class App {
     this.bindInput();
     window.addEventListener('resize', () => this.resize());
     this.resize();
-    this.title();
     requestAnimationFrame((t) => this.frame(t));
+    void this.boot();
     (window as unknown as { __yolanda: App }).__yolanda = this;
+  }
+
+  private async boot(): Promise<void> {
+    const load = document.createElement('div');
+    load.className = 'screen loading';
+    load.innerHTML = '<div class="logo"><h1>YOLANDA</h1><h2>ANESTHESIA SHIFT</h2></div><div class="load-bar"><i></i></div><p class="load-txt">Setting up the suite…</p>';
+    this.app.append(load);
+    const bar = load.querySelector('.load-bar i') as HTMLElement;
+    const failed = await preloadAssets((d, t) => { bar.style.width = `${(d / t) * 100}%`; });
+    if (failed) console.warn(`${failed} model(s) failed to load; using built-in shapes for those.`);
+    load.remove();
+    this.title();
   }
 
   applySettings(): void {
