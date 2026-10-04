@@ -197,6 +197,11 @@ export const CASE_TEMPLATES: Record<string, CaseTemplate> = {
         requiresYolanda: true, safetyCritical: true, priority: 5, scoreCategory: 'safety', anim: 'interact',
       },
       {
+        id: 'comfort_chat', name: 'Reassure the patient', label: 'Reassure (bonus)',
+        stationId: '$bay', phase: 'prep', duration: 2.5, prerequisites: ['assess_patient'], requiredItems: [], producedItems: [],
+        requiresYolanda: true, optional: true, priority: 2, scoreCategory: 'care', anim: 'talk',
+      },
+      {
         id: 'warm_patient', name: 'Warm blanket on', label: 'Warm the patient',
         stationId: '$bay', phase: 'prep', duration: 2, prerequisites: ['assess_patient', 'thermanest_start'], requiredItems: [], producedItems: [],
         requiresYolanda: true, priority: 4, scoreCategory: 'care', anim: 'talk',

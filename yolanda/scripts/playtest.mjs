@@ -35,7 +35,7 @@ const botPromise = page.evaluate(async ([lazy, follow]) => {
   let lastLog = '';
   const say = (s) => { if (s !== lastLog) { log.push(`[t=${g().ts.time.toFixed(1)}] ${s}`); lastLog = s; } };
   // stations in a sensible preference order (slow machines first)
-  const pref = lazy ? ['chart', 'bay2', 'bay1', 'supplies', 'scopeair', 'sedaprep', 'airready', 'workstation', 'handoff'] : ['workstation', 'airready', 'sedaprep', 'scopeair', 'chart', 'supplies', 'bay2', 'bay1', 'handoff'];
+  const pref = lazy ? ['chart', 'orchart', 'bay2', 'bay1', 'ortable', 'supplies', 'scopeair', 'vitadock', 'sedaprep', 'airready', 'thermanest', 'workstation', 'handoff'] : ['thermanest', 'workstation', 'airready', 'vitadock', 'sedaprep', 'scopeair', 'chart', 'orchart', 'supplies', 'bay2', 'bay1', 'ortable', 'handoff'];
   while (performance.now() - t0 < 240000) {
     const game = g();
     if (game.mode === 'results') break;
@@ -47,12 +47,14 @@ const botPromise = page.evaluate(async ([lazy, follow]) => {
       continue;
     }
     if (game.mode === 'prep') {
-      const need = [...game.glowItems()];
-      const fc = game.focusCase();
-      // pick what unfinished tasks need, but leave room for outputs
-      for (const id of need) {
-        if (game.inv.free <= 0) break;
-        if (game.inv.count(id) === 0 && game.stockOf(id) > 0) { game.pickItem(id); say(`pick ${id}`); }
+      // pick whole input sets for unfinished tasks, slow machines first, as long as the set fits
+      const drawerNeeds = game.glowItems();
+      const tasks = game.ts.list().filter((t) => (t.state === 'available' || t.state === 'locked') && !t.def.optional && t.def.requiredItems.some((i) => drawerNeeds.has(i)))
+        .sort((x, y) => (y.def.process ?? 0) - (x.def.process ?? 0));
+      for (const t of tasks) {
+        const missing = game.inv.missing(t.def.requiredItems).filter((i) => drawerNeeds.has(i) && game.stockOf(i) > 0);
+        if (!missing.length || missing.length > game.inv.free) continue;
+        for (const id of missing) { game.pickItem(id); say(`pick ${id}`); }
       }
       game.closePrep();
       say(`close prep, tray=${game.inv.items.join(',')}`);
@@ -70,8 +72,9 @@ const botPromise = page.evaluate(async ([lazy, follow]) => {
       await sleep(50);
       continue;
     }
-    if (follow && game.mode === 'room' && game.y.k === 'idle' && game.queue.length === 0) {
+    if (follow && game.mode === 'room' && (game.y.k === 'idle' || game.y.k === 'wait') && game.queue.length === 0) {
       const sg = game.suggestNext();
+      if (game.y.k === 'wait' && (!sg.station || sg.station === game.y.station)) { await sleep(40); continue; }
       if (sg.page) { game.page(game.focusCase()); say('follow: page'); }
       else if (sg.station) { say(`follow → ${sg.station}: ${sg.text}`); game.tapStation(sg.station); }
       else for (const d of game.availableDelegations()) { game.delegate(d); say(`follow: delegate ${d.id}`); }

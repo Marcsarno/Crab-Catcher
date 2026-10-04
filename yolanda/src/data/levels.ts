@@ -119,7 +119,7 @@ export const LEVELS: LevelDef[] = [
       { id: 'recover_rescue', roleId: 'circulator', name: 'Prepare RecoverSet', eta: 38, completesTask: 'prep_recover', deliversItem: 'recoverSet', phases: ['active', 'closing'] },
     ],
     startClock: 13 * 60 + 10,
-    parWalk: 110,
+    parWalk: 140,
     tutorial: [
       { when: 'room', text: 'The OR has more machines. <b>ThermaNest</b> is the slowest. Your tray only holds 4, so plan two supply trips.' },
       { when: 'phase:active', text: 'Surgery started. Stay in the patient zone. Need something from outside? Use <b>Team</b>.' },

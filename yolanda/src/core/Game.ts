@@ -942,10 +942,11 @@ export class Game {
     // 1. alerts
     const ev = tasks.filter((t) => t.event && t.state === 'available').sort((x, y) => x.event!.deadline - y.event!.deadline)[0];
     if (ev) return { task: ev, station: ev.def.stationId, text: `${ev.event!.def.bubble} — go to ${stationName(ev.def.stationId)} now.`, urgent: true };
-    // 2. finished machine output to collect
-    const ready = tasks.find((t) => t.state === 'ready');
+    // 2. finished machine output to collect (stranded outputs first: once sedation starts Yolanda can't fetch them)
+    const ready = tasks.filter((t) => t.state === 'ready').sort((x, y) => (this.inZone(this.world.stations.get(x.def.stationId)!.stand) ? 1 : 0) - (this.inZone(this.world.stations.get(y.def.stationId)!.stand) ? 1 : 0))[0];
     if (ready && this.inv.free >= ready.def.producedItems.length) {
-      return { task: ready, station: ready.def.stationId, text: `${label(ready)} is READY — collect it.` };
+      const stranded = !active && !this.inZone(this.world.stations.get(ready.def.stationId)!.stand);
+      return { task: ready, station: ready.def.stationId, text: stranded ? `${label(ready)} is READY — collect it now; you can't leave the patient once sedation starts.` : `${label(ready)} is READY — collect it.` };
     }
     // 3/4. doable now: slow (process) work first, then highest priority
     const avail = tasks.filter((t) => t.state === 'available' && !t.event);
