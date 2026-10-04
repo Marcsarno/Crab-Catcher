@@ -6,12 +6,15 @@ import { mat } from './palette';
 // External CC0 models (see ASSET_MANIFEST.md). Everything is re-materialed onto
 // the shared palette at load time so imported pieces match the procedural ones.
 
-const BASE = `${import.meta.env.BASE_URL}assets/`;
+// Model files are bundled by Vite (hashed files in normal builds, inlined data URIs
+// in the single-file build) so the game works wherever the page is hosted.
+// The single-file share build ships models beside the page as embedded-glTF .json files
+// (scripts/export-models-json.py), because some hosts only serve web file types.
+const SHARE = import.meta.env.MODE === 'single';
+const URLS = import.meta.glob('../models/**/*.{glb,gltf}', { query: '?url', import: 'default', eager: true }) as Record<string, string>;
+const urlFor = (file: string) => (SHARE ? `assets/${file.replace(/\.(glb|gltf)$/, '.json')}` : URLS[`../models/${file}`]);
 
 export const MODEL_FILES = {
-  // Kenney Mini Characters (CC0) — medical props only (the blocky people are not used)
-  wheelchair: 'kenney-mini-characters/wheelchair.glb',
-  defibrillator: 'kenney-mini-characters/aid-defibrillator-red.glb',
   // Kenney Furniture Kit (CC0)
   desk: 'kenney-furniture-kit/desk.glb',
   chairDesk: 'kenney-furniture-kit/chairdesk.glb',
@@ -52,7 +55,9 @@ export async function preloadAssets(onProgress?: (done: number, total: number) =
   let done = 0, failed = 0;
   await Promise.all(names.map(async (n) => {
     try {
-      const gltf = await loader.loadAsync(BASE + MODEL_FILES[n]);
+      const url = urlFor(MODEL_FILES[n]);
+      if (!url) throw new Error(`missing bundled file ${MODEL_FILES[n]}`);
+      const gltf = await loader.loadAsync(url);
       cache.set(n, gltf);
     } catch (e) {
       failed++;

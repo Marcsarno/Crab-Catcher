@@ -2,7 +2,6 @@
 
 External models (all CC0 1.0, public domain; credit given as a courtesy):
 
-- **Kenney Mini Characters** (wheelchair, defibrillator) by Kenney — https://kenney.nl/assets/mini-characters
 - **Kenney Furniture Kit** by Kenney — https://kenney.nl/assets/furniture-kit
 - **Sushi Restaurant Kit** (potted plants) by Quaternius — https://quaternius.com
 

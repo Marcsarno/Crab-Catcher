@@ -190,8 +190,6 @@ export class World {
         trash: ['trashcan', 0.85, 0.5],
         bookcase: ['bookcase', 2.0, 1.0, { wood: '#f7f4ee', woodDark: '#5a8ade' }],
         coatrack: ['coatRack', 2.0, 0.5],
-        defib: ['defibrillator', 0.9, 0.7],
-        wheelchair: ['wheelchair', 1.25, 1.0],
         lamp: ['lampFloor', 2.2, 0.5],
       };
       const kp = kenneyProps[d.kind];

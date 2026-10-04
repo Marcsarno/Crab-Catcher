@@ -14,7 +14,7 @@ exists. Medications (CalmBlue, ComfortGold, NauseaGuard, RecoverGreen) and machi
 npm install
 npm run dev          # http://localhost:5173 — use a phone or a portrait devtools viewport
 npm run build        # typecheck + production build → dist/
-npm run build:single # one self-contained HTML file → dist-single/index.html
+npm run build:single # share build → dist-single/index.html (+ python3 scripts/export-models-json.py <dir> for models)
 npm run playtest     # headless bot plays Level 1 end to end (needs `npm run dev` running)
 node scripts/playtest.mjs L2 --speed=4 --shots   # other levels, phase screenshots in shots/
 node scripts/playtest.mjs L1 --lazy              # naive player, to check scoring spread
