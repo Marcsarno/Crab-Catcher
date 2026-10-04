@@ -478,6 +478,38 @@ export class World {
     return null;
   }
 
+  private puffs: { m: THREE.Mesh; t: number }[] = [];
+  private puffGeo = new THREE.SphereGeometry(0.12, 8, 6);
+  private puffTimer = new WeakMap<object, number>();
+
+  /** Little dust puffs at a walker's heels. Call every frame with the walker's rig. */
+  stepPuffs(rig: Rig, dt: number): void {
+    if (rig.anim !== 'walk' && rig.anim !== 'push') return;
+    const t = (this.puffTimer.get(rig) ?? 0) - dt;
+    if (t > 0) { this.puffTimer.set(rig, t); return; }
+    this.puffTimer.set(rig, 0.24);
+    const lvl = this.scene.getObjectByName('level');
+    if (!lvl || this.puffs.length > 24) return;
+    const m = new THREE.Mesh(this.puffGeo, new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.5, depthWrite: false }));
+    const p = rig.root.position;
+    const back = rig.root.rotation.y;
+    m.position.set(p.x - Math.sin(back) * 0.25 + (Math.random() - 0.5) * 0.15, 0.08, p.z - Math.cos(back) * 0.25 + (Math.random() - 0.5) * 0.15);
+    lvl.add(m);
+    this.puffs.push({ m, t: 0 });
+  }
+
+  updateFx(dt: number): void {
+    for (const pf of this.puffs) {
+      pf.t += dt;
+      const k = pf.t / 0.55;
+      pf.m.scale.setScalar(0.6 + k * 1.3);
+      pf.m.position.y += dt * 0.25;
+      (pf.m.material as THREE.MeshBasicMaterial).opacity = 0.5 * (1 - k);
+      if (k >= 1) { pf.m.removeFromParent(); (pf.m.material as THREE.Material).dispose(); }
+    }
+    this.puffs = this.puffs.filter((pf) => pf.t < 0.55);
+  }
+
   showNavDebug(on: boolean): void {
     if (this.navDebug) { this.scene.remove(this.navDebug); this.navDebug = null; }
     if (!on) return;
@@ -505,6 +537,7 @@ export class World {
   }
 
   dispose(): void {
+    this.puffs = [];
     this.hidden = [];
     const lvl = this.scene.getObjectByName('level');
     if (lvl) this.scene.remove(lvl);

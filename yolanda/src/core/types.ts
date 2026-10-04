@@ -139,7 +139,7 @@ export interface TaskDef {
 
 export type AnimName =
   | 'idle' | 'walk' | 'carry' | 'interact' | 'drawer' | 'machine' | 'monitor'
-  | 'chart' | 'talk' | 'push' | 'handoff' | 'wait';
+  | 'chart' | 'talk' | 'push' | 'handoff' | 'wait' | 'cheer';
 
 export interface CaseTemplate {
   id: string;

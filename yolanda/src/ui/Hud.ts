@@ -35,6 +35,7 @@ export class Hud implements GameUI {
   private g!: Game;
   readonly el: HTMLElement;
   private labels: HTMLElement;
+  private workRing = h('div', 'work-ring', '<i></i>');
   private top: HTMLElement;
   private tasksEl: HTMLElement;
   private careEl: HTMLElement;
@@ -465,12 +466,31 @@ export class Hud implements GameUI {
     this.labels.style.display = show ? '' : 'none';
     if (!show) return;
     const active = g.ts.anyActive();
+    // Yolanda's on-screen box (feet to head): tags she stands behind fade so she stays visible
+    const yp = g.world.yolanda.root.position;
+    this.v.set(yp.x, 0.1, yp.z).project(camera);
+    const yx = (this.v.x * 0.5 + 0.5) * w, yFeet = (-this.v.y * 0.5 + 0.5) * hgt;
+    this.v.set(yp.x, 2.4, yp.z).project(camera);
+    const yHead = (-this.v.y * 0.5 + 0.5) * hgt;
+    const yHalf = Math.max(10, (yFeet - yHead) * 0.18);
+    // progress ring over Yolanda's head while she does hands-on work
+    const y = g.y;
+    if (y.k === 'work' && y.task.def.duration > 0) {
+      if (this.workRing.parentElement !== this.labels) this.labels.append(this.workRing);
+      const pct = Math.min(100, (y.task.work / y.task.def.duration) * 100);
+      this.workRing.style.display = '';
+      this.workRing.style.transform = `translate(${yx}px, ${yHead - 22}px)`;
+      (this.workRing.firstElementChild as HTMLElement).style.setProperty('--p', `${pct}%`);
+    } else this.workRing.style.display = 'none';
     for (const [id, el] of this.labelEls) {
       const sv = g.world.stations.get(id)!;
       this.v.copy(sv.labelPos).project(camera);
       const half = (el.offsetWidth || 120) / 2;
       const x = Math.max(half + 4, Math.min(w - half - 4, (this.v.x * 0.5 + 0.5) * w)), y = (-this.v.y * 0.5 + 0.5) * hgt;
       el.style.transform = `translate(${x - half}px, ${y}px) translate(0, -50%)`;
+      const lh = el.offsetHeight || 30;
+      const behind = Math.abs(x - yx) < half - 18 + yHalf && y + lh / 2 > yHead && y - lh / 2 < yFeet;
+      el.classList.toggle('behind', behind);
       // state badge
       const here = g.ts.list().filter((t) => t.def.stationId === id);
       const ev = here.find((t) => t.event && t.state !== 'done');

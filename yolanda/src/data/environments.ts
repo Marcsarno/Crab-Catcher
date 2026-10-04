@@ -22,7 +22,7 @@ const coreStations: StationPlacement[] = [
   P('chart', -2.3, -3.9, 1),
   P('sedaprep', 2.2, -3.7, 0),
   P('scopeair', -2.5, -0.6, 1),
-  P('supplies', 2.3, -0.4, 0),
+  P('supplies', 2.3, -0.4, 0, { x: -1.55, z: 0.5 }), // stand in the open lane, not behind the workstation
   P('bay1', -2.1, 2.6, 0, { x: 1.25, z: 0.1 }),
   P('workstation', 2.3, 2.4, 0),
 ];

@@ -1,6 +1,7 @@
 // Dev-only character preview: /dev/charview.html (not part of the build).
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import * as EQ from '../src/render/models/equipment';
 import { makeHuman, makeLyingPatient, animateRig, animatePatient, YOLANDA_LOOK, type HumanLook } from '../src/render/models/characters';
 
 const q = new URLSearchParams(location.search);
@@ -35,6 +36,12 @@ const rigs = looks.map((l, i) => { const g = makeHuman(l); g.root.position.x = (
 const pat = makeLyingPatient({ skin: '#d9a77f', hair: '#2b211b', gown: '#9cc3ea', hairStyle: 'short' });
 pat.root.position.set(0, 0.7, -2); if (q.get("anx")) pat.state = "anxious";
 scene.add(pat.root);
+if (q.get('st')) {
+  for (const o of [...rigs.map((r) => r.root), pat.root]) o.visible = false;
+  const makers = q.get('st')!.split(',').map((n) => (EQ as Record<string, () => THREE.Object3D>)[n]());
+  makers.forEach((m, i) => { m.position.x = (i - (makers.length - 1) / 2) * 3; scene.add(m); });
+  scene.traverse((o) => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).castShadow = true; });
+}
 const cam = new THREE.PerspectiveCamera(Number(q.get('fov') ?? 30), innerWidth / innerHeight, 0.1, 100);
 const yaw = Number(q.get('yaw') ?? 0), pitch = Number(q.get('pitch') ?? 0.35), dist = Number(q.get('d') ?? 9);
 cam.position.set(Math.sin(yaw) * Math.cos(pitch) * dist, 1 + Math.sin(pitch) * dist, Math.cos(yaw) * Math.cos(pitch) * dist);

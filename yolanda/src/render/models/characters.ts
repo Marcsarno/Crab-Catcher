@@ -51,7 +51,7 @@ export const YOLANDA_LOOK: HumanLook = {
 /** Map game animation names to Kenney clip names. */
 const CLIP_FOR: Record<AnimName, string> = {
   idle: 'idle', walk: 'walk', carry: 'holding-both', interact: 'interact-right', drawer: 'pick-up', machine: 'interact-right',
-  monitor: 'interact-left', chart: 'interact-left', talk: 'emote-yes', push: 'walk', handoff: 'emote-yes', wait: 'idle',
+  monitor: 'interact-left', chart: 'interact-left', talk: 'emote-yes', push: 'walk', handoff: 'emote-yes', wait: 'idle', cheer: 'emote-yes',
 };
 
 function makeModelRig(look: HumanLook): Rig | null {
@@ -456,6 +456,15 @@ export function animateRig(rig: Rig, dt: number, carrying: boolean): void {
       armLx = -0.2; armRx = -0.2; armLz = -0.35; armRz = 0.35;
       headY = Math.sin(t * 0.8) * 0.4;
       bob = Math.sin(t * 2) * 0.008;
+      break;
+    }
+    case 'cheer': {
+      const w = t * 7;
+      armLx = armRx = -2.7 + Math.sin(w) * 0.25;
+      armLz = -0.35 - Math.sin(w) * 0.2; armRz = 0.35 + Math.sin(w) * 0.2;
+      bob = Math.max(0, Math.sin(w)) * 0.22;
+      legL = legR = -Math.max(0, Math.sin(w)) * 0.25;
+      headX = -0.2;
       break;
     }
     default: { // idle

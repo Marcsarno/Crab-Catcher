@@ -495,3 +495,14 @@ button { font-family: inherit; }
 .confetti { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 5; }
 .confetti i { position: absolute; top: -16px; width: 9px; height: 14px; border-radius: 2px; animation: fall linear forwards; }
 @keyframes fall { to { transform: translate(var(--dx), 110vh) rotate(var(--rot)); } }
+.lbl { transition: opacity .2s; }
+.lbl.behind { opacity: .38; }
+.lbl.behind.focus { opacity: .8; }
+
+/* hands-on work progress ring above Yolanda */
+.work-ring { position: absolute; left: 0; top: 0; pointer-events: none; }
+.work-ring i {
+  display: block; width: 30px; height: 30px; margin: -15px 0 0 -15px; border-radius: 50%;
+  background: radial-gradient(circle, #fff 0 52%, transparent 54%), conic-gradient(var(--teal, #2fae9d) var(--p, 0%), rgba(30,53,80,.25) 0);
+  border: 2.5px solid #fff; box-shadow: 0 3px 8px rgba(20,40,70,.3);
+}

@@ -112,6 +112,7 @@ export function makeSedaPrep(): StationModel {
   drawers(g, 0.9, 0.72, 0.61, 2, 0.12, C.blue, -0.5);
   drawers(g, 0.9, 0.72, 0.61, 2, 0.12, C.blue, 0.5);
   casters(g, 2.0, 1.2, 0.05);
+  g.add(at(rbox(2.04, 0.1, 1.24, C.blueDeep, 0.04), 0, 0.1, 0));
   g.add(at(rbox(2.08, 0.08, 1.26, C.lightGray, 0.04), 0, 0.98, 0));
   // the machine: a big rounded white unit with a glowing screen
   const m = new THREE.Group();
@@ -152,8 +153,9 @@ export function makeScopeAir(): StationModel {
   icon.add(at(rbox(0.06, 0.24, 0.06, C.blue, 0.02), 0, 0.22, 0));
   icon.position.set(0, 1.35, 0.58);
   body.add(icon);
-  const label = textPlane('ScopeAir', 1.0, 0.24, C.blueDeep, null, 'bold 110px system-ui, sans-serif');
-  label.position.set(0, 0.95, 0.585);
+  const label = textPlane('ScopeAir', 0.86, 0.22, C.blueDeep, null, 'bold 110px system-ui, sans-serif');
+  label.position.set(-0.04, 0.95, 0.585);
+  body.add(at(rbox(1.25, 0.12, 1.2, C.blue, 0.05), 0, 0.62, 0));
   body.add(label);
   drawers(body, 0.9, 0.36, 0.585, 1, 0.3, C.lightGray);
   body.position.x = -0.35;
@@ -168,8 +170,8 @@ export function makeScopeAir(): StationModel {
   cart.add(mon, at(rbox(0.1, 0.3, 0.1, C.midGray, 0.03), 0, 1.15, -0.05));
   cart.position.set(0.62, 0, 0.05);
   g.add(cart);
-  g.add(tube([new THREE.Vector3(0.0, 1.2, 0.45), new THREE.Vector3(0.25, 1.0, 0.75), new THREE.Vector3(0.35, 0.6, 0.7), new THREE.Vector3(0.12, 0.35, 0.55)], 0.06, '#dfe9f2'));
-  g.add(tube([new THREE.Vector3(0.05, 1.0, 0.4), new THREE.Vector3(0.18, 0.75, 0.62), new THREE.Vector3(0.25, 0.5, 0.6)], 0.05, C.tealLight));
+  g.add(tube([new THREE.Vector3(0.24, 1.25, 0.3), new THREE.Vector3(0.42, 1.05, 0.72), new THREE.Vector3(0.5, 0.62, 0.72), new THREE.Vector3(0.3, 0.35, 0.6)], 0.06, '#dfe9f2'));
+  g.add(tube([new THREE.Vector3(0.26, 1.02, 0.3), new THREE.Vector3(0.36, 0.78, 0.6), new THREE.Vector3(0.42, 0.5, 0.6)], 0.05, C.tealLight));
   g.userData.status = statusLight(g, -0.35, 1.95, 0.1);
   return g;
 }
@@ -179,7 +181,14 @@ export function makeSupplies(): StationModel {
   const W = 1.9, D = 1.0, H = 1.0;
   g.add(at(rbox(W, H, D, C.white, R), 0, H / 2 + 0.14, 0));
   casters(g, W, D, 0.07);
+  g.add(at(rbox(W + 0.04, 0.1, D + 0.04, C.blueDeep, 0.04), 0, 0.17, 0));
   g.add(at(rbox(W + 0.1, 0.08, D + 0.08, C.lightGray, 0.04), 0, H + 0.18, 0));
+  // gallery rail around the top and a push handle on the right
+  for (const sz of [-1, 1]) g.add(at(rbox(W, 0.05, 0.05, C.midGray, 0.02), 0, H + 0.36, sz * (D / 2 + 0.01)));
+  g.add(at(rbox(0.05, 0.05, D, C.midGray, 0.02), -W / 2, H + 0.36, 0));
+  for (const sz of [-1, 1]) g.add(at(cyl(0.025, 0.025, 0.16, C.midGray, 8), -W / 2, H + 0.28, sz * (D / 2)));
+  for (const sz of [-1, 1]) g.add(at(rbox(0.22, 0.06, 0.06, C.midGray, 0.02), W / 2 + 0.1, H + 0.3, sz * 0.32));
+  g.add(at(cyl(0.045, 0.045, 0.74, C.blue, 12).rotateX(Math.PI / 2), W / 2 + 0.21, H + 0.3, 0));
   const ds: THREE.Group[] = [];
   const tags = [C.yellow, C.teal, C.blueDeep];
   for (let i = 0; i < 3; i++) {
@@ -211,6 +220,7 @@ export function makeWorkstation(): StationModel {
   g.add(at(rbox(1.5, 1.0, 1.1, C.white, R), -0.15, 0.6, 0));
   drawers(g, 1.3, 0.8, 0.56, 3, 0.2, C.blue, -0.15);
   casters(g, 1.5, 1.1, 0.06);
+  g.add(at(rbox(1.54, 0.1, 1.14, C.blueDeep, 0.04), -0.15, 0.16, 0));
   g.add(at(rbox(1.62, 0.09, 1.2, C.lightGray, 0.04), -0.15, 1.14, 0.02));
   // tower + big monitor with green waveform
   g.add(at(rbox(1.2, 0.62, 0.6, C.warmWhite, 0.12), -0.2, 1.5, -0.25));

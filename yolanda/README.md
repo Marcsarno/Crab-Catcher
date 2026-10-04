@@ -19,6 +19,7 @@ npm run playtest     # headless bot plays Level 1 end to end (needs `npm run dev
 node scripts/playtest.mjs L2 --speed=4 --shots   # other levels, phase screenshots in shots/
 node scripts/playtest.mjs L1 --lazy              # naive player, to check scoring spread
 node scripts/playtest.mjs L1 --follow            # only follows the on-screen next-step hint
+node scripts/cv.mjs out.png "?d=6"              # character preview (dev/charview.html); ?st=makeSedaPrep,makeScopeAir for machines
 ```
 
 ## How to play
@@ -46,8 +47,10 @@ node scripts/playtest.mjs L1 --follow            # only follows the on-screen ne
 3. **Patient Modifier**: assessment reveals an airway alert. Build a Special Airway
    Kit at AirReady.
 
-Levels 4–8 (OR, parallel processes, ultrasound, pediatric, MRI) are designed in
-`PLAN.md`. The data model is built to support them.
+4. **Operating Room**: bigger case with induction, closing and emergence phases, a
+   surgical team, and circulator delegation.
+
+Levels 5–8 (parallel processes, ultrasound, pediatric, MRI) are designed in `PLAN.md`.
 
 ## Developer panel
 

@@ -661,7 +661,14 @@ export class Game {
       if (nurse) nurse.anim = 'talk';
       if (this.ts.allDone()) {
         this.finished = true;
-        setTimeout(() => this.finish(), 1600 / this.speed);
+        // little victory hop toward the camera before the results card
+        const yr = this.world.yolanda;
+        this.queue.clear();
+        this.y = { k: 'overlay' };
+        yr.anim = 'cheer';
+        yr.root.rotation.y = this.world.env.camYaw;
+        this.audio.play('star');
+        setTimeout(() => this.finish(), 2300 / this.speed);
       }
     }
   }
@@ -996,6 +1003,9 @@ export class Game {
     const carrying = this.inv.items.length > 0;
     animateRig(w.yolanda, dt || dtReal * 0.5, carrying);
     for (const rig of w.npcs.values()) animateRig(rig, dt || dtReal * 0.5, false);
+    w.stepPuffs(w.yolanda, dt);
+    for (const rig of w.npcs.values()) w.stepPuffs(rig, dt);
+    w.updateFx(dt);
     for (const [id, pr] of w.patients) {
       const c = this.ts.getCase(id);
       const stirring = this.ts.list().some((t) => t.caseId === id && t.event && t.state !== 'done' && t.event.def.vitals?.comfort);
