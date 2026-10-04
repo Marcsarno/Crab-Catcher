@@ -17,6 +17,14 @@ import { C } from '../render/palette';
 
 export type Mode = 'card' | 'prep' | 'room' | 'handoff' | 'results' | 'paused';
 
+export interface Suggestion {
+  task: TaskRT | null;
+  station: string | null;
+  text: string;
+  urgent?: boolean;
+  page?: boolean;
+}
+
 type YState =
   | { k: 'idle' }
   | { k: 'move'; path: Vec2[]; i: number; station: string | null }
@@ -44,7 +52,7 @@ interface Delegation {
 
 export interface GameUI {
   toast(text: string, kind?: 'info' | 'good' | 'warn' | 'bad'): void;
-  hint(text: string | null, focus?: string | null): void;
+  hint(text: string | null): void;
   openPrep(): void;
   closePrep(): void;
   openHandoff(c: CaseRT, facts: { text: string; correct: boolean }[], done: (picked: number[]) => void): void;
@@ -81,6 +89,8 @@ export class Game {
   private lastHint: string | null = null;
   private exitAnims: { obj: THREE.Object3D; t: number; from: THREE.Vector3; to: THREE.Vector3 }[] = [];
   focusStation: string | null = null;
+  suggestion: Suggestion = { task: null, station: null, text: '' };
+  private suggestT = 0;
   /** Limited cart stock (only items listed in level.stock are limited). */
   readonly stock = new Map<string, number>();
   private eventBeepT = 0;
@@ -93,7 +103,7 @@ export class Game {
     readonly ui: GameUI,
     hints: boolean,
   ) {
-    this.tutorialOn = hints && !!level.tutorial;
+    this.tutorialOn = hints;
     const env = ENVIRONMENTS[level.environmentId];
     world.build(env, level);
     this.ts = new TaskSystem(level);
@@ -158,19 +168,29 @@ export class Game {
     const q = new URLSearchParams(location.search);
     const fy = Number(q.get('yaw') ?? yaw), fp = Number(q.get('pitch') ?? pitch);
     // ROOM: frame the stations themselves (not the room corners) so everything is big.
+    const extent = (sv: StationView): THREE.Vector3[] => {
+      const odd = sv.rot % 2 === 1;
+      const hw = (odd ? sv.def.d : sv.def.w) / 2, hd = (odd ? sv.def.w : sv.def.d) / 2;
+      const pts = [sv.labelPos.clone()];
+      for (const dx of [-hw, hw]) for (const dz of [-hd, hd]) {
+        pts.push(new THREE.Vector3(sv.center.x + dx, 0, sv.center.z + dz), new THREE.Vector3(sv.center.x + dx, sv.topY, sv.center.z + dz));
+      }
+      return pts;
+    };
     const room: THREE.Vector3[] = [];
-    for (const sv of this.world.stations.values()) {
-      room.push(sv.center.clone(), new THREE.Vector3(sv.center.x, sv.topY, sv.center.z), sv.labelPos.clone());
-    }
+    for (const sv of this.world.stations.values()) room.push(...extent(sv));
+    // keep the back wall (windows, sign, PACU door) in frame, like a diorama
+    const ho = this.world.stations.get('handoff');
+    if (ho) room.push(new THREE.Vector3(ho.center.x, 2.9, -env.depth / 2));
     // margins: [left, right, bottom, top] in NDC — top bar above, task + tray cards below
-    this.cam.define('room', room, fy, fp, [-0.28, -0.28, 0.5, 0.16]);
+    this.cam.define('room', room, fy, fp, [-0.1, -0.1, 0.5, 0.15]);
     // ACTIVE: a gentle push toward the patient zone — same angle, never a rotation
     const zone: THREE.Vector3[] = [];
     for (const sv of this.world.stations.values()) {
       if (!this.inZone(sv.stand)) continue;
-      zone.push(sv.center.clone(), new THREE.Vector3(sv.center.x, sv.topY, sv.center.z), sv.labelPos.clone());
+      zone.push(...extent(sv));
     }
-    this.cam.define('active', zone, fy, fp, [-0.15, -0.15, 0.5, 0.36]);
+    this.cam.define('active', zone, fy, fp, [0.04, 0.04, 0.5, 0.4]);
     // PREP: push in on the supply cart — same angle again
     const sup = this.world.stations.get('supplies')!;
     const c = sup.center;
@@ -199,6 +219,14 @@ export class Game {
     }
     if (this.y.k === 'transport') {
       this.ui.toast('Finish wheeling the patient first.', 'warn');
+      return;
+    }
+    // tapping a station that is already on the route takes it off again
+    const queued = this.queue.items.find((q) => q.stationId === id);
+    if (queued && !insertNext) {
+      this.queue.cancel(queued.uid);
+      this.audio.play('click');
+      this.ui.toast(`${sv.def.name.replace('Anesthesia ', '')} removed from route`, 'info');
       return;
     }
     const a = insertNext ? this.queue.insertNext(id) : this.queue.add(id);
@@ -594,7 +622,7 @@ export class Game {
       // bed leaves with the PACU nurse
       const bed = this.beds.get(c.id)!;
       const from = bed.position.clone();
-      this.exitAnims.push({ obj: bed, t: 0, from, to: new THREE.Vector3(from.x, 0, this.world.env.depth / 2 + 3) });
+      this.exitAnims.push({ obj: bed, t: 0, from, to: new THREE.Vector3(this.world.env.door.x, 0, this.world.env.door.z) });
       const nurse = this.world.npcs.get('pacu');
       if (nurse) nurse.anim = 'talk';
       if (this.ts.allDone()) {
@@ -627,6 +655,12 @@ export class Game {
       this.updateWalkers(dt);
       this.updateDelegations(dt);
       this.updateTutorial();
+    }
+    this.suggestT -= dtReal;
+    if (this.suggestT <= 0 && (this.mode === 'room' || this.mode === 'prep')) {
+      this.suggestT = 0.2;
+      this.suggestion = this.suggestNext();
+      this.focusStation = this.tutorialOn && this.mode === 'room' ? this.suggestion.station : null;
     }
     this.updateVisuals(dt, dtReal);
     const yp = this.world.yolanda.root.position;
@@ -843,25 +877,75 @@ export class Game {
   }
 
   private updateTutorial(): void {
-    if (!this.tutorialOn || !this.level.tutorial) return;
+    if (!this.level.tutorial) return;
     const steps = this.level.tutorial;
-    // advance to the furthest step whose condition holds
     let idx = this.tutorialIdx;
     for (let i = steps.length - 1; i >= this.tutorialIdx; i--) {
       if (this.cond(steps[i].when)) { idx = i + 1; break; }
     }
     if (idx !== this.tutorialIdx) {
       this.tutorialIdx = idx;
-      const s = steps[idx - 1];
-      const focus = s.focus === '$bay' ? this.focusCase().patient.bay : s.focus ?? null;
-      this.focusStation = focus;
-      if (s.text !== this.lastHint) {
-        this.lastHint = s.text;
-        this.ui.hint(s.text, focus);
+      const st = steps[idx - 1];
+      // Station-specific guidance comes from the "next step" suggestion; only
+      // situation-level coaching (phase changes, new rules) is spoken here.
+      if (this.tutorialOn && !st.focus && st.text !== this.lastHint) {
+        this.lastHint = st.text;
+        this.ui.hint(st.text);
       }
     }
-    // clear focus once that station has been visited/used
-    if (this.focusStation && this.y.k === 'work' && this.y.station === this.focusStation) this.focusStation = null;
+  }
+
+  /**
+   * The single clearest next step, used for the highlighted task row and the
+   * bouncing arrow. Order: alerts → collect finished work → start slow work →
+   * quick work → fetch missing items → page the proceduralist → optional care.
+   */
+  suggestNext(): Suggestion {
+    const active = this.ts.anyActive();
+    const ok = (stationId: string) => {
+      const sv = this.world.stations.get(stationId);
+      return !!sv && (!active || this.inZone(sv.stand));
+    };
+    const tasks = this.ts.list().filter((t) => t.def.requiresYolanda !== false && !t.def.auto && ok(t.def.stationId));
+    const label = (t: TaskRT) => t.def.label ?? t.def.name;
+    const stationName = (id: string) => this.world.stations.get(id)!.def.name.replace('Anesthesia ', '');
+    // 1. alerts
+    const ev = tasks.filter((t) => t.event && t.state === 'available').sort((x, y) => x.event!.deadline - y.event!.deadline)[0];
+    if (ev) return { task: ev, station: ev.def.stationId, text: `${ev.event!.def.bubble} — go to ${stationName(ev.def.stationId)} now.`, urgent: true };
+    // 2. finished machine output to collect
+    const ready = tasks.find((t) => t.state === 'ready');
+    if (ready && this.inv.free >= ready.def.producedItems.length) {
+      return { task: ready, station: ready.def.stationId, text: `${label(ready)} is READY — collect it.` };
+    }
+    // 3/4. doable now: slow (process) work first, then highest priority
+    const avail = tasks.filter((t) => t.state === 'available' && !t.event);
+    const canDo = (t: TaskRT) => this.inv.hasAll(t.def.requiredItems) && (!t.def.needsProceduralist || this.ts.caseOf(t).proceduralistPresent)
+      && !(t.def.process && this.ts.list().some((o) => o !== t && o.def.stationId === t.def.stationId && (o.state === 'running' || o.state === 'ready') && (o.def.process ?? 0) > 0));
+    const doable = avail.filter((t) => !t.def.optional && canDo(t))
+      .sort((x, y) => ((y.def.process ?? 0) - (x.def.process ?? 0)) || (y.def.priority - x.def.priority));
+    if (doable[0]) {
+      const t = doable[0];
+      return { task: t, station: t.def.stationId, text: t.def.hint ?? `${label(t)} at ${stationName(t.def.stationId)}.` };
+    }
+    // 5. missing items that the cart has
+    if (!active) {
+      const needs = avail.filter((t) => !t.def.optional).flatMap((t) => this.inv.missing(t.def.requiredItems)).filter((id) => ITEMS[id]?.drawer && this.stockOf(id) > 0);
+      if (needs.length && this.inv.free > 0) {
+        const names = [...new Set(needs)].slice(0, 3).map((id) => ITEMS[id].short).join(', ');
+        return { task: null, station: 'supplies', text: `Grab ${names} from Supplies.` };
+      }
+    }
+    // 6. everything ready but the proceduralist
+    const fc = this.focusCase();
+    if (this.canPage(fc)) return { task: this.ts.get(fc.id, 'time_out') ?? null, station: null, text: `Ready! Page ${fc.template.proceduralist.name} to start.`, page: true };
+    const waitingProc = avail.find((t) => t.def.needsProceduralist && this.inv.hasAll(t.def.requiredItems));
+    if (waitingProc) return { task: waitingProc, station: waitingProc.def.stationId, text: `${fc.template.proceduralist.name} is on the way — begin when they arrive.` };
+    // 7. optional care while machines run
+    const opt = avail.find((t) => t.def.optional && canDo(t));
+    const running = this.ts.list().filter((t) => t.state === 'running' && !t.def.auto).sort((x, y) => x.processLeft - y.processLeft)[0];
+    if (opt) return { task: opt, station: opt.def.stationId, text: running ? `${label(running)} needs ${Math.ceil(running.processLeft)}s — spend it with your patient.` : 'Bonus: comfort your patient.' };
+    if (running) return { task: running, station: null, text: `Waiting on ${label(running)} (${Math.ceil(running.processLeft)}s).` };
+    return { task: null, station: null, text: '' };
   }
 
   // ------------------------------------------------------------------ visuals
@@ -888,6 +972,13 @@ export class Game {
       const show = this.mode === 'room' && (focus || this.queue.items.some((q) => q.stationId === sv.place.id));
       sv.markerMat.opacity += ((show ? (focus ? 0.55 + Math.sin(this.elapsed * 6) * 0.25 : 0.45) : 0) - sv.markerMat.opacity) * Math.min(1, dtReal * 8);
       sv.markerMat.color.set(focus ? C.yellow : C.teal);
+    }
+    // bouncing "go here next" arrow
+    const fs = this.focusStation ? w.stations.get(this.focusStation) : null;
+    w.arrow.visible = !!fs && this.mode === 'room' && !this.queue.items.some((q) => q.stationId === this.focusStation);
+    if (fs) {
+      w.arrow.position.set(fs.center.x, fs.topY + 0.55 + Math.abs(Math.sin(this.elapsed * 3.2)) * 0.35, fs.center.z);
+      w.arrow.rotation.y += dtReal * 1.5;
     }
     // supply drawers open while in prep
     const sup = w.stations.get('supplies');

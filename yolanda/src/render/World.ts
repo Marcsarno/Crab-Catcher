@@ -63,10 +63,10 @@ export class World {
   private blobMat = new THREE.MeshBasicMaterial({ map: blobTex(), transparent: true, depthWrite: false });
 
   constructor() {
-    this.scene.background = new THREE.Color('#9fb9d6');
-    const hemi = new THREE.HemisphereLight('#fff8ee', '#9fb7d3', 0.85);
+    this.scene.background = new THREE.Color('#8fb0d6');
+    const hemi = new THREE.HemisphereLight('#fff6e8', '#7f9cc4', 0.6);
     this.scene.add(hemi);
-    const dir = new THREE.DirectionalLight('#fff1dc', 2.1);
+    const dir = new THREE.DirectionalLight('#fff0d8', 1.7);
     dir.position.set(-6, 15, 8);
     dir.castShadow = true;
     dir.shadow.mapSize.set(2048, 2048);
@@ -83,7 +83,7 @@ export class World {
   initEnvironment(renderer: THREE.WebGLRenderer): void {
     const pmrem = new THREE.PMREMGenerator(renderer);
     this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    this.scene.environmentIntensity = 0.55;
+    this.scene.environmentIntensity = 0.42;
     pmrem.dispose();
   }
 
@@ -114,6 +114,20 @@ export class World {
     this.nav = new NavGrid(env.width, env.depth, 0.25, 0.34);
     this.navWide = new NavGrid(env.width, env.depth, 0.25, 0.8);
     this.buildRoom(env, root);
+    // Only the floor the fixed camera shows is walkable: block cells outside the
+    // on-screen band so paths never route Yolanda off the edge of the phone.
+    {
+      const cy = Math.cos(env.camYaw), sy = Math.sin(env.camYaw);
+      const xs = env.stations.map((p) => p.x * cy - p.z * sy);
+      const uMin = Math.min(...xs) - 1.6, uMax = Math.max(...xs) + 1.6;
+      for (const g of [this.nav, this.navWide]) {
+        for (let r = 0; r < g.rows; r++) for (let c = 0; c < g.cols; c++) {
+          const w = g.toWorld(c, r);
+          const u = w.x * cy - w.z * sy;
+          if (u < uMin || u > uMax) g.blocked[g.idx(c, r)] = 1;
+        }
+      }
+    }
 
     for (const place of env.stations) {
       const def = STATIONS[place.id];
@@ -130,7 +144,7 @@ export class World {
         this.blockLocal(place, 0, 0, 1.25, 2.6, [this.nav]);
         if (def.kind === 'bay') {
           // cubicle partitions + side table
-          this.blockLocal(place, 0.1, -1.65, 3.45, 0.2, [this.nav, this.navWide]);
+          this.blockLocal(place, -0.2, -1.65, 2.15, 0.2, [this.nav, this.navWide]);
           this.blockLocal(place, -1.27, -0.1, 0.2, 3.1, [this.nav, this.navWide]);
           this.blockLocal(place, -0.72, -1.35, 0.5, 0.45, [this.nav]);
         }
@@ -218,6 +232,7 @@ export class World {
     const stem = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.32, 0.16), am);
     stem.position.y = 0.34;
     arrow.add(cone, stem);
+    arrow.scale.setScalar(1.7);
     arrow.visible = false;
     root.add(arrow);
     this.arrow = arrow;
@@ -272,7 +287,7 @@ export class World {
     });
     tileTex.wrapS = tileTex.wrapT = THREE.RepeatWrapping;
     tileTex.repeat.set(W / 2.4, D / 2.4);
-    const floorMat = new THREE.MeshStandardMaterial({ map: tileTex, roughness: 0.22, metalness: 0.0, envMapIntensity: 1.1 });
+    const floorMat = new THREE.MeshStandardMaterial({ map: tileTex, roughness: 0.42, metalness: 0.0, envMapIntensity: 0.3 });
     this.floor = plane(W, D, floorMat);
     this.floor.rotation.x = -Math.PI / 2;
     this.floor.userData.floor = true;

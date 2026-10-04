@@ -34,7 +34,7 @@ class App {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.renderer.toneMapping = THREE.NeutralToneMapping;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
     this.app.append(this.renderer.domElement);
     this.world.initEnvironment(this.renderer);
@@ -73,7 +73,7 @@ class App {
     const s = this.save.data.settings;
     this.audio.setSound(s.sound);
     this.audio.setMusic(s.music);
-    if (this.game) this.game.tutorialOn = s.hints && !!this.game.level.tutorial;
+    if (this.game) this.game.tutorialOn = s.hints;
   }
 
   private resize(): void {

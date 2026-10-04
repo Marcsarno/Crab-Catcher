@@ -108,10 +108,10 @@ function hair(head: THREE.Group, look: HumanLook, r: number) {
     const tail = new THREE.Group();
     tail.position.set(0, r * 0.45, -r * 1.05);
     const p1 = sph(r * 0.3, hm, 12);
-    p1.scale.set(0.9, 1.3, 0.9);
+    p1.scale.set(1.05, 1.5, 1.05);
     p1.position.set(0, -r * 0.2, -r * 0.12);
     const p2 = sph(r * 0.24, hm, 12);
-    p2.scale.set(0.9, 1.4, 0.9);
+    p2.scale.set(1.0, 1.6, 1.0);
     p2.position.set(0, -r * 0.62, -r * 0.18);
     tail.add(p1, p2);
     tail.name = 'ponytail';
@@ -141,7 +141,7 @@ export function makeHuman(look: HumanLook): Rig {
   const root = new THREE.Group();
   const body = new THREE.Group();
   root.add(body);
-  const s = look.scale ?? 1;
+  const s = look.scale ?? 1.15;
   body.scale.setScalar(s);
 
   const hipY = 0.72;
@@ -205,8 +205,8 @@ export function makeHuman(look: HumanLook): Rig {
 
   // head
   const head = new THREE.Group();
-  const r = 0.29;
-  head.position.y = hipY + 0.6 + r * 0.95;
+  const r = 0.34; // big friendly head
+  head.position.y = hipY + 0.62 + r * 0.9;
   const neck = cyl(0.07, 0.08, 0.14, look.skin, 10);
   neck.position.y = -r * 0.95;
   const skull = sph(r, look.skin, 22);
@@ -247,6 +247,18 @@ export function makeHuman(look: HumanLook): Rig {
   tray.position.set(0, hipY + 0.28, 0.42);
   tray.visible = false;
   body.add(tray);
+
+  // tablet in the right hand (Yolanda's signature prop)
+  const tablet = new THREE.Group();
+  tablet.add(rbox(0.26, 0.36, 0.04, '#24384f', 0.03));
+  const glow = rbox(0.21, 0.29, 0.01, '#7fd8ff', 0.01, false);
+  glow.position.z = 0.022;
+  tablet.add(glow);
+  tablet.position.set(0.02, -0.5, 0.12);
+  tablet.rotation.set(-0.3, 0, 0.1);
+  tablet.name = 'tablet';
+  tablet.visible = !!look.badge && look.hairStyle === 'ponytail';
+  armR.add(tablet);
 
   root.traverse((o) => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).castShadow = true; });
 
@@ -335,6 +347,8 @@ export function animateRig(rig: Rig, dt: number, carrying: boolean): void {
     armLz = lerp(armLz, -0.3, rig.carry); armRz = lerp(armRz, 0.3, rig.carry);
   }
   rig.tray.visible = rig.carry > 0.5 && (a === 'walk' || a === 'idle' || a === 'wait');
+  const tab = rig.armR.getObjectByName('tablet');
+  if (tab && tab.userData.allowed !== false) tab.visible = !rig.tray.visible && a !== 'push' && a !== 'machine' && a !== 'interact';
 
   rig.legL.rotation.x = lerp(rig.legL.rotation.x, legL, k);
   rig.legR.rotation.x = lerp(rig.legR.rotation.x, legR, k);
@@ -372,6 +386,7 @@ export interface PatientRig {
 /** A patient lying on their back, head toward local +x. */
 export function makeLyingPatient(look: { skin: string; hair: string; gown: string; hairStyle: string }): PatientRig {
   const root = new THREE.Group();
+  root.scale.setScalar(1.12);
   const body = rbox(1.5, 0.3, 0.62, look.gown, 0.14);
   body.position.set(-0.1, 0.15, 0);
   root.add(body);
@@ -392,7 +407,7 @@ export function makeLyingPatient(look: { skin: string; hair: string; gown: strin
   pivot.position.set(0.85, 0.3, 0);
   const head = new THREE.Group();
   pivot.add(head);
-  const r = 0.27;
+  const r = 0.31;
   const skull = sph(r, look.skin, 20);
   head.add(skull);
   const hm = mat(look.hair);

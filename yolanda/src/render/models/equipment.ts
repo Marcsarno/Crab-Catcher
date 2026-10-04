@@ -291,10 +291,10 @@ export function makeBed(withCubicle = true, number = '1'): StationModel {
 
   if (withCubicle) {
     // cream partition walls (back + left), curtain on the left, bay number
-    const pw = W + 2.2;
-    g.add(at(rbox(pw, 1.7, 0.16, C.cream, 0.05), 0.1, 0.85, -L / 2 - 0.35));
-    g.add(at(rbox(pw + 0.04, 0.1, 0.22, C.creamDark, 0.03), 0.1, 1.72, -L / 2 - 0.35));
-    g.add(at(rbox(pw, 0.16, 0.18, C.wainscot, 0.03), 0.1, 0.1, -L / 2 - 0.34));
+    const pw = W + 0.9, px = -0.2;
+    g.add(at(rbox(pw, 1.7, 0.16, C.cream, 0.05), px, 0.85, -L / 2 - 0.35));
+    g.add(at(rbox(pw + 0.04, 0.1, 0.22, C.creamDark, 0.03), px, 1.72, -L / 2 - 0.35));
+    g.add(at(rbox(pw, 0.16, 0.18, C.wainscot, 0.03), px, 0.1, -L / 2 - 0.34));
     g.add(at(rbox(0.16, 1.7, L + 0.5, C.cream, 0.05), -W / 2 - 0.65, 0.85, -0.1));
     g.add(at(rbox(0.22, 0.1, L + 0.54, C.creamDark, 0.03), -W / 2 - 0.65, 1.72, -0.1));
     // curtain folds hanging in front of the left partition

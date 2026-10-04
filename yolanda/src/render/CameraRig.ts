@@ -27,7 +27,7 @@ export class CameraRig {
   private shake = 0;
 
   constructor() {
-    this.camera = new THREE.PerspectiveCamera(30, 9 / 16, 0.5, 150);
+    this.camera = new THREE.PerspectiveCamera(19, 9 / 16, 1, 400);
     const s = (): Shot => ({ target: new THREE.Vector3(), dist: 30, yaw: 0.5, pitch: 0.75, sx: 0, sy: 0 });
     this.cur = s();
     this.goal = s();
@@ -46,7 +46,7 @@ export class CameraRig {
 
   resize(w: number, h: number): void {
     this.camera.aspect = w / h;
-    this.camera.fov = w / h < 0.7 ? 32 : 28;
+    this.camera.fov = w / h < 0.7 ? 19 : 16; // long lens: near-isometric, little distortion
     this.camera.updateProjectionMatrix();
     this.recompute();
     this.copy(this.cur, this.goal);
@@ -98,7 +98,7 @@ export class CameraRig {
       return true;
     };
     for (let iter = 0; iter < 6; iter++) {
-      let lo = 1, hi = 150;
+      let lo = 1, hi = 300;
       for (let i = 0; i < 30; i++) {
         shot.dist = (lo + hi) / 2;
         if (fits()) hi = shot.dist; else lo = shot.dist;

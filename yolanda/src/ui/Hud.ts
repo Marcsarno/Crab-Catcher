@@ -37,10 +37,8 @@ export class Hud implements GameUI {
   private labels: HTMLElement;
   private top: HTMLElement;
   private tasksEl: HTMLElement;
-  private timersEl: HTMLElement;
   private careEl: HTMLElement;
   private bottom: HTMLElement;
-  private queueEl: HTMLElement;
   private slotsEl: HTMLElement;
   private toastsEl: HTMLElement;
   private hintEl: HTMLElement | null = null;
@@ -49,61 +47,53 @@ export class Hud implements GameUI {
   private staffMenu: HTMLElement | null = null;
   private labelEls = new Map<string, HTMLElement>();
   private lastSlots = '';
-  private lastQueue = '';
   private lastTasks = '';
-  private lastTimers = '';
   private lastSide = '';
-  private tasksCollapsed = false;
   private v = new THREE.Vector3();
 
   constructor(root: HTMLElement, private hooks: HudHooks) {
     this.el = h('div', 'layer hud');
     this.labels = h('div', 'labels');
     this.top = h('div', 'panel topbar');
-    this.tasksEl = h('div', 'panel tasks');
-    this.timersEl = h('div', 'timers');
+    this.tasksEl = h('div', 'taskcard');
     this.careEl = h('div', 'panel care hidden');
     this.sideEl = h('div', 'side-btns');
-    this.bottom = h('div', 'bottom');
-    this.queueEl = h('div', 'queue');
-    const tray = h('div', 'panel tray');
-    tray.append(h('div', 'ttl', 'Prep<br>Tray<small class="cnt">0/4</small>'));
-    this.slotsEl = h('div', 'slots');
+    this.bottom = h('div', 'bottom2');
+    const tray = h('div', 'traycard');
+    tray.append(h('div', 'tc-head', 'Prep Tray <span class="cnt">0 / 4</span>'));
+    this.slotsEl = h('div', 'tc-slots');
     tray.append(this.slotsEl);
-    this.bottom.append(this.queueEl, tray);
+    this.bottom.append(this.tasksEl, tray);
     this.toastsEl = h('div', 'toasts');
-    this.el.append(this.labels, this.top, this.tasksEl, this.timersEl, this.careEl, this.sideEl, this.bottom, this.toastsEl);
+    this.el.append(this.labels, this.top, this.careEl, this.sideEl, this.bottom, this.toastsEl);
     root.append(this.el);
     this.labels.style.pointerEvents = 'none';
-    this.tasksEl.addEventListener('click', (e) => {
-      if ((e.target as HTMLElement).closest('h4')) { this.tasksCollapsed = !this.tasksCollapsed; this.lastTasks = ''; }
-    });
   }
 
   attach(g: Game): void {
     this.g = g;
     this.labels.innerHTML = '';
     this.labelEls.clear();
-    this.lastSlots = this.lastQueue = this.lastTasks = this.lastTimers = this.lastSide = '';
+    this.lastSlots = this.lastTasks = this.lastSide = '';
     this.closeSheet();
     this.hint(null);
     this.toastsEl.innerHTML = '';
     this.staffMenu?.remove();
     this.staffMenu = null;
-    this.tasksCollapsed = true;
     // top bar
     this.top.innerHTML = '';
-    const menuBtn = h('button', 'icon-btn', ICON.pause);
-    menuBtn.setAttribute('aria-label', 'Pause');
-    menuBtn.onclick = () => this.hooks.pause();
-    const title = h('div', 'tb-title', `<b>${g.level.title}</b><span class="ph">Prep</span><div class="phase-dots"><i></i><i></i><i></i><i></i></div>`);
+    const badge = h('div', 'tb-icon', ICON.chart);
+    const title = h('div', 'tb-title', `<b>${g.level.title}</b><span class="ph">Prep Phase</span>`);
     const clock = h('div', 'tb-clock', `${ICON.clock}<span>--:--</span>`);
     clock.dataset.role = 'clock';
-    this.top.append(menuBtn, title, clock);
+    const menuBtn = h('button', 'icon-btn', ICON.gear);
+    menuBtn.setAttribute('aria-label', 'Pause and settings');
+    menuBtn.onclick = () => this.hooks.pause();
+    this.top.append(badge, title, clock, menuBtn);
     // station labels
     for (const [id, sv] of g.world.stations) {
       const el = h('div', 'lbl');
-      el.innerHTML = `<div class="pill">${ICON[sv.def.icon] ?? ''}<span>${sv.def.kind === 'bay' || sv.def.kind === 'preop' ? sv.def.name : sv.def.name.replace('Anesthesia ', '')}</span></div><div class="badge hidden"></div>`;
+      el.innerHTML = `<div class="pill"><span class="qn hidden"></span><i class="ic">${ICON[sv.def.icon] ?? ''}</i><span>${sv.def.kind === 'bay' || sv.def.kind === 'preop' ? sv.def.name : sv.def.name.replace('Anesthesia ', '')}</span></div><div class="badge hidden"></div>`;
       el.style.position = 'absolute';
       let pressT: number | null = null;
       let long = false;
@@ -286,23 +276,16 @@ export class Hud implements GameUI {
     if (!g) return;
     const fc = g.focusCase();
     // top bar
-    const phaseName = { prep: 'Prep', active: 'Active Case', recovery: 'Recovery', done: 'Handoff done' }[fc.phase];
+    const phaseName = { prep: 'Prep Phase', active: 'Active Case', recovery: 'Recovery', done: 'Handoff done' }[fc.phase];
     const ph = this.top.querySelector('.ph')!;
     const phTxt = g.ts.cases.length > 1 ? `${phaseName} · ${fc.patient.name}` : phaseName;
     if (ph.textContent !== phTxt) ph.textContent = phTxt;
-    const order = ['prep', 'active', 'recovery', 'done'];
-    this.top.querySelectorAll('.phase-dots i').forEach((d, i) => {
-      const pi = order.indexOf(fc.phase);
-      d.className = i < pi ? 'on' : i === pi ? 'now' : '';
-    });
     const clock = this.top.querySelector('[data-role=clock] span')!;
     const ct = fmtClock(g.level.startClock + g.ts.time / 4);
     if (clock.textContent !== ct) clock.textContent = ct;
 
     this.renderTasks(fc);
-    this.renderTimers();
     this.renderTray();
-    this.renderQueue();
     this.renderCare(fc);
     this.renderSide(fc);
     this.renderLabels(camera, w, hgt);
@@ -311,12 +294,9 @@ export class Hud implements GameUI {
       if (key !== this.sheet.dataset.key) { this.sheet.dataset.key = key; this.renderPrep(); }
     }
     const inRoom = g.mode === 'room' || g.mode === 'paused';
-    this.tasksEl.classList.toggle('hidden', !inRoom);
-    this.timersEl.classList.toggle('hidden', !inRoom && g.mode !== 'prep');
-    if (this.hintEl) {
-      this.hintEl.style.top = `calc(${this.careEl.classList.contains('hidden') ? 68 : 132}px + var(--safe-top))`;
-      this.hintEl.style.visibility = this.tasksCollapsed ? '' : 'hidden';
-    }
+    this.bottom.classList.toggle('hidden', !inRoom);
+    this.sideEl.classList.toggle('hidden', !inRoom);
+    if (this.hintEl) this.hintEl.style.top = `calc(${this.careEl.classList.contains('hidden') ? 76 : 140}px + var(--safe-top))`;
     // toasts sit just below whatever occupies the top (hint, care panel)
     let topY = 68;
     if (!this.careEl.classList.contains('hidden')) topY = this.careEl.offsetTop + this.careEl.offsetHeight + 6;
@@ -328,62 +308,46 @@ export class Hud implements GameUI {
     return t.def.label ?? t.def.name;
   }
 
-  private renderTasks(_focus: CaseRT): void {
+  private renderTasks(fc: CaseRT): void {
     const g = this.g;
-    const cases = g.ts.cases.filter((c) => c.phase !== 'done' && (c.arrived || g.ts.list().some((t) => t.caseId === c.id && t.def.levelTask)));
-    const sections: { title: string; rows: TaskRT[] }[] = [];
-    let doneN = 0, totalN = 0;
-    for (const c of cases) {
-      const inPhase = (t: TaskRT) => (Array.isArray(t.def.phase) ? t.def.phase : [t.def.phase]).includes(c.phase);
-      let rows = g.ts.list().filter((t) => t.caseId === c.id && !t.def.hidden && !t.def.auto && (c.arrived || t.def.levelTask))
-        .filter((t) => inPhase(t) || (t.state !== 'done' && t.state !== 'locked'));
-      if (c.phase !== 'prep') rows = rows.filter((t) => !(t.def.optional && t.state === 'locked'));
-      rows.sort((x, y) => (y.event ? 1 : 0) - (x.event ? 1 : 0));
-      doneN += rows.filter((t) => t.state === 'done').length;
-      totalN += rows.length;
-      sections.push({ title: cases.length > 1 ? `${c.patient.name}${c.arrived ? '' : ' (arriving)'}` : '', rows });
-    }
-    const key = sections.map((sec) => sec.title + sec.rows.map((t) => `${t.key}:${t.state}:${t.state === 'running' ? Math.ceil(t.processLeft) : ''}`).join('|')).join('#') + g.inv.items.join() + this.tasksCollapsed;
+    const sug = g.suggestion;
+    const inPhase = (t: TaskRT) => {
+      const c = g.ts.caseOf(t);
+      return (Array.isArray(t.def.phase) ? t.def.phase : [t.def.phase]).includes(c.phase);
+    };
+    const rows = g.ts.list().filter((t) => !t.def.hidden && !t.def.auto && (t.caseId === fc.id || (t.def.levelTask && t.state !== 'locked'))
+      && (inPhase(t) || t.state === 'running' || t.state === 'ready' || (t.event && t.state !== 'done')));
+    const open = rows.filter((t) => t.state !== 'done').sort((x, y) => (y.event ? 1 : 0) - (x.event ? 1 : 0) || (x.def.optional ? 1 : 0) - (y.def.optional ? 1 : 0));
+    const doneN = rows.filter((t) => t.state === 'done').length;
+    const title = { prep: 'Prep Tasks', active: 'Case Tasks', recovery: 'Recovery Tasks', done: 'Done' }[fc.phase] + (g.ts.cases.length > 1 ? ` · ${fc.patient.name}` : '');
+    const timeLeft = (t: TaskRT) => {
+      if (t.state === 'running') return `${Math.ceil(t.processLeft)}s`;
+      if (t.state === 'ready') return 'READY';
+      if (t.state === 'working' && t.by && t.by !== 'yolanda') return STAFF_ROLES[t.by]?.name ?? '';
+      if (t.def.needsProceduralist && !g.ts.caseOf(t).proceduralistPresent) {
+        const left = g.ts.caseOf(t).patient.proceduralistArrival - g.ts.time;
+        return g.procSpawned.has(t.caseId) ? 'Dr. coming' : left > 0 ? `Dr. ${Math.ceil(left)}s` : '';
+      }
+      return '';
+    };
+    const key = `${title}|${sug.text}|${sug.task?.key}|${doneN}|` + open.map((t) => `${t.key}:${t.state}:${timeLeft(t)}`).join('|') + g.inv.items.join();
     if (key === this.lastTasks) return;
     this.lastTasks = key;
-    let html = `<h4><span>${this.tasksCollapsed ? '☑' : 'TASKS'} ${doneN}/${totalN}</span><span>${this.tasksCollapsed ? '▸' : '▾'}</span></h4><ul>`;
-    for (const sec of sections) {
-      if (sec.title) html += `<li class="sec"><b>${sec.title}</b></li>`;
-      for (const t of sec.rows.slice(0, 12)) {
-        const st = t.state === 'working' ? (t.by && t.by !== 'yolanda' ? 'running' : 'available') : t.state;
-        let right = '';
-        if (t.state === 'running') right = `<span class="t">${Math.ceil(t.processLeft)}s</span>`;
-        if (t.state === 'ready') right = '<span class="t">READY</span>';
-        if (t.state === 'working' && t.by && t.by !== 'yolanda') right = `<span class="t">${STAFF_ROLES[t.by]?.name ?? ''}</span>`;
-        const missing = t.state === 'available' ? g.inv.missing(t.def.requiredItems) : [];
-        const need = missing.length ? `<span class="need">needs ${missing.map((m) => ITEMS[m]?.short ?? m).join(' + ')}</span>` : '';
-        const label = t.event ? `<b style="color:#ff8f8f">${this.taskLabel(t)}</b>` : this.taskLabel(t);
-        html += `<li class="${st} ${t.def.optional ? 'optional' : ''}"><span class="ck">${t.state === 'done' ? ICON.check : ''}</span><span>${label}${need}</span>${right}</li>`;
-      }
+    const MAX = 4;
+    let html = `<div class="tk-head"><b>${title}</b><span>${doneN}/${rows.length}</span></div>`;
+    if (sug.text && g.tutorialOn) html += `<div class="tk-next ${sug.urgent ? 'urgent' : ''}"><i>${sug.urgent ? '!' : '➜'}</i><span>${sug.text}</span></div>`;
+    html += '<ul>';
+    for (const t of open.slice(0, MAX)) {
+      const right = timeLeft(t);
+      const missing = t.state === 'available' ? g.inv.missing(t.def.requiredItems) : [];
+      const cls = [t.state, t === sug.task && g.tutorialOn ? 'next' : '', t.def.optional ? 'optional' : '', t.event ? 'event' : '', t.state === 'locked' ? 'later' : ''].join(' ');
+      const need = missing.length ? `<small>needs ${missing.map((m) => ITEMS[m]?.short ?? m).join(' + ')}</small>` : '';
+      html += `<li class="${cls}"><span class="ck">${t.state === 'ready' ? ICON.check : ''}</span><span class="tx">${this.taskLabel(t)}${need}</span>${right ? `<span class="t ${t.state === 'ready' ? 'ok' : ''}">${right}</span>` : ''}</li>`;
     }
+    if (open.length > MAX) html += `<li class="more">+${open.length - MAX} more</li>`;
+    if (!open.length) html += '<li class="more">All done ✓</li>';
     html += '</ul>';
     this.tasksEl.innerHTML = html;
-    this.tasksEl.classList.toggle('collapsed', this.tasksCollapsed);
-  }
-
-  private renderTimers(): void {
-    const g = this.g;
-    const items: { name: string; left: number; total: number; ready: boolean; eta?: boolean }[] = [];
-    for (const t of g.totalRunning()) {
-      if (t.def.auto) continue;
-      items.push({ name: this.taskLabel(t), left: t.processLeft, total: t.def.process ?? 1, ready: t.state === 'ready' });
-    }
-    for (const d of g.delegations) items.push({ name: `${STAFF_ROLES[d.def.roleId].name}: ${d.def.name}`, left: d.left, total: d.total, ready: false, eta: true });
-    for (const c of g.ts.cases) {
-      if (c.phase === 'prep' && c.arrived && !g.procSpawned.has(c.id)) {
-        const left = c.patient.proceduralistArrival - g.ts.time;
-        if (left < 40 && left > 0) items.push({ name: `${c.template.proceduralist.name} ETA`, left, total: 40, ready: false, eta: true });
-      }
-    }
-    const key = items.map((i) => `${i.name}:${Math.ceil(i.left)}:${i.ready}:${Math.round((i.left / i.total) * 40)}`).join('|');
-    if (key === this.lastTimers) return;
-    this.lastTimers = key;
-    this.timersEl.innerHTML = items.map((i) => `<div class="panel timer ${i.ready ? 'ready' : ''} ${i.eta ? 'eta' : ''}"><div class="row"><span>${i.name}</span><b>${i.ready ? 'READY' : `${Math.ceil(i.left)}s`}</b></div><div class="bar" style="width:${(1 - i.left / i.total) * 100}%"></div></div>`).join('');
   }
 
   private renderTray(): void {
@@ -393,37 +357,9 @@ export class Hud implements GameUI {
     const prev = this.lastSlots.split(',');
     this.lastSlots = key;
     this.slotsEl.innerHTML = g.inv.slots.map((id, i) =>
-      id ? `<div class="slot full ${prev[i] !== id ? 'pop' : ''}">${itemIcon(ITEMS[id])}${ITEMS[id].short}</div>` : '<div class="slot">empty</div>').join('');
+      id ? `<div class="ts full ${prev[i] !== id ? 'pop' : ''}">${itemIcon(ITEMS[id])}<span>${ITEMS[id].short}</span></div>` : `<div class="ts"><span class="n">${i + 1}</span></div>`).join('');
     const cnt = this.bottom.querySelector('.cnt');
-    if (cnt) cnt.textContent = `${g.inv.items.length}/4`;
-  }
-
-  private renderQueue(): void {
-    const g = this.g;
-    const cur = g.y.k === 'move' ? g.y.station : g.y.k === 'work' || g.y.k === 'wait' ? g.y.station : null;
-    const key = `${cur}|${g.queue.items.map((q) => q.uid).join(',')}`;
-    if (key === this.lastQueue) return;
-    this.lastQueue = key;
-    this.queueEl.innerHTML = '';
-    if (!g.queue.length && !cur) return;
-    this.queueEl.append(h('span', 'lbl-q', 'ROUTE'));
-    const name = (id: string) => {
-      const sv = g.world.stations.get(id)!;
-      return sv.def.kind === 'workstation' ? 'Workstation' : sv.def.name.split(' ·')[0];
-    };
-    if (cur && !g.queue.items.some((q) => q.stationId === cur && g.y.k === 'move')) {
-      this.queueEl.append(h('span', 'chip cur', `<span class="n">▶</span>${name(cur)}`));
-    }
-    g.queue.items.forEach((q, i) => {
-      const chip = h('span', `chip ${i === 0 && g.y.k === 'move' ? 'cur' : ''}`, `<span class="n">${i + 1}</span>${name(q.stationId)}${ICON.x}`);
-      chip.onclick = () => { g.cancelQueued(q.uid); };
-      this.queueEl.append(chip);
-    });
-    if (g.queue.length > 1) {
-      const clr = h('button', 'clear', 'Clear');
-      clr.onclick = () => g.clearQueue();
-      this.queueEl.append(clr);
-    }
+    if (cnt) cnt.textContent = `${g.inv.items.length} / 4`;
   }
 
   private renderCare(c: CaseRT): void {
@@ -503,6 +439,12 @@ export class Hud implements GameUI {
       const locked = active && !g.inZone(sv.stand);
       el.classList.toggle('locked', locked);
       el.classList.toggle('focus', g.focusStation === id);
+      const qi = g.queue.items.findIndex((q) => q.stationId === id);
+      const cur = (g.y.k === 'move' || g.y.k === 'work' || g.y.k === 'wait') && g.y.station === id;
+      const qn = el.querySelector('.qn') as HTMLElement;
+      const qTxt = cur ? '▶' : qi >= 0 ? String(qi + 1) : '';
+      if (qn.textContent !== qTxt) qn.textContent = qTxt;
+      qn.classList.toggle('hidden', !qTxt);
       const act = !locked && !ev && !ready && g.ts.actionable(id, g.inv);
       let dot = el.querySelector('.dot');
       if (act && !dot) { dot = h('span', 'dot'); el.querySelector('.pill')!.append(dot); (el.querySelector('.pill') as HTMLElement).style.position = 'relative'; }
