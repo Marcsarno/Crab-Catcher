@@ -30,14 +30,13 @@ src/
     environments.ts      room layouts (station placement, walls, zones)
     levels.ts            level = template + modifiers + environment + events
   nav/
-    NavGrid.ts           occupancy grid built from station footprints
-    AStar.ts             8-way A* + line-of-sight smoothing
+    NavGrid.ts           occupancy grid + 8-way A* + line-of-sight smoothing
   render/
     palette.ts           the ONE shared material library (cohesive look)
-    models/*.ts          procedural stylized models (Yolanda, patient, machines…)
-    World.ts             scene, lights, room build, station meshes, labels
+    models/characters.ts Yolanda/staff/patient models + procedural animation
+    models/equipment.ts  stylized machines, beds, decor
+    World.ts             scene, lights, room build, station meshes, nav grids
     CameraRig.ts         fixed 3/4 camera with modes: PREP / ROOM / ACTIVE
-    Characters.ts        procedural animation (idle, walk, carry, interact…)
   ui/                    DOM overlay: top bar, tasks, timers, tray, queue,
                          prep close-up, case card, handoff, results, menu, debug
   audio/Audio.ts         synthesized SFX + light generative music
@@ -61,12 +60,22 @@ src/
 ## Milestones
 1. ✅ Shell, camera, room, Yolanda, nav, stations, task engine, tray, timers.
 2. ✅ Level 1 Routine Endoscopy end-to-end (prep → active → recovery → handoff → score).
-3. Playtest loop (automated Playwright run + screenshots in portrait), tune feel.
-4. Level 2 Rapid Turnover (two patients, turnover, restock, delegation).
-5. Level 3 Patient Modifier (assessment reveals airway alert → AirReady).
-6. Level 4 Operating Room. Later: parallel processes, ultrasound, peds, MRI.
+3. ✅ Automated Playwright playtest (`scripts/playtest.mjs`, normal + `--lazy` bots,
+   per-phase screenshots) — used after every change.
+4. ✅ Level 2 Rapid Turnover: pre-op bay, bed moves, limited cart stock + restock,
+   bay turnover, anesthesia-tech delegation with ETAs, multi-patient task list.
+5. ✅ Level 3 Patient Modifier: assessment reveals Airway Alert → AirReady kit.
+6. ⏭ Level 4 Operating Room: new `or` environment (bigger room, OR table, lights,
+   airway cart), `generalAnesthesia` template with Closing phase, VitaDock/ThermaNest.
+7. ⏭ Level 5 parallel processes (ThermaNest, transport request, deliveries).
+8. ⏭ Level 6 ultrasound as shared equipment (delegation with ETA, already supported).
+9. ⏭ Level 7 pediatric (anxious patient flag exists; caregiver NPC + comfort choices).
+10. ⏭ Level 8 MRI: screening threshold zone that rejects items without `mriSafe`.
+11. ⏭ Swap procedural props for licensed GLBs once asset hosts are reachable.
 
 ## Key assumptions
+* Every case starts with the Prep close-up at the supply cart; Yolanda spawns there.
+* Long-press a station = "do this next" (queue insert); floor tap = redirect.
 * External asset sites (itch.io, Sketchfab, Poly Pizza, Kenney…) are blocked from
   the build environment, so all 3D models are procedural stylized geometry built
   from one shared palette. See `ASSET_MANIFEST.md`.
