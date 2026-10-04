@@ -4,10 +4,12 @@ import { STATIONS } from '../data/stations';
 import { NavGrid, type Vec2 } from '../nav/NavGrid';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { hasModel, prop, type ModelName } from './assets';
+import { uv } from '../data/environments';
+import { LiveMonitor } from './monitor';
 import { C, at, canvasTex, cyl, mat, plane, rbox, textPlane } from './palette';
 import {
   makeAirReady, makeBed, makeBench, makeChartDesk, makeHandoff, makePlant, makeScopeAir, makeSedaPrep,
-  makeSink, makeSupplies, makeWorkstation, makeORTable, makeThermaNest, makeVitaDock, makeORChart, type StationModel,
+  makeSink, makeWetSign, makeSupplies, makeWorkstation, makeORTable, makeThermaNest, makeVitaDock, makeORChart, type StationModel,
 } from './models/equipment';
 import { makeHuman, makeLyingPatient, YOLANDA_LOOK, type HumanLook, type PatientRig, type Rig } from './models/characters';
 
@@ -51,6 +53,8 @@ export class World {
   yolanda!: Rig;
   readonly npcs = new Map<string, Rig>();
   readonly patients = new Map<string, PatientRig>();
+  /** Every wave screen in the room, driven by the patient's vitals. */
+  readonly monitors: { mon: LiveMonitor; stationId: string }[] = [];
   zone!: THREE.Mesh;
   zoneMat!: THREE.MeshBasicMaterial;
   env!: EnvironmentDef;
@@ -182,6 +186,14 @@ export class World {
         ? new THREE.Vector3(place.x - 0.2, 0.55, place.z + 1.55)
         : new THREE.Vector3(place.x + front.x * (def.d / 2 + 0.05), 0.5, place.z + front.z * (def.d / 2 + 0.05));
       const topY = def.kind === 'workstation' ? 2.75 : def.kind === 'ortable' ? 3.3 : isBed ? 2.2 : def.kind === 'sedaprep' ? 2.5 : def.kind === 'scopeair' ? 2.2 : def.kind === 'handoff' ? 3.2 : def.kind === 'thermanest' ? 2.1 : 1.9;
+      model.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (m.isMesh && m.userData.screenIcon === 'wave') {
+          const lm = new LiveMonitor(m.userData.screenTint as string);
+          m.material = lm.material;
+          this.monitors.push({ mon: lm, stationId: place.id });
+        }
+      });
       this.stations.set(place.id, { def, place, model, center: new THREE.Vector3(place.x, 0, place.z), stand, face, hit, marker, markerMat, labelPos: lp, topY, rot });
     }
 
@@ -219,6 +231,14 @@ export class World {
         const odd = (d.rot ?? 0) % 2 === 1;
         this.nav.blockCentered(d.x, d.z, odd ? 0.6 : 1.8, odd ? 1.8 : 0.6);
         this.navWide.blockCentered(d.x, d.z, odd ? 0.6 : 1.8, odd ? 1.8 : 0.6);
+      } else if (d.kind === 'wetsign') {
+        const ws = makeWetSign();
+        ws.position.set(d.x, 0, d.z);
+        ws.rotation.y = 0.5 + (d.rot ?? 0);
+        root.add(ws);
+        this.blob(root, d.x, d.z, 0.9, 0.9);
+        this.nav.blockCentered(d.x, d.z, 0.5, 0.5);
+        this.navWide.blockCentered(d.x, d.z, 0.5, 0.5);
       } else if (d.kind === 'sink') {
         const s = makeSink();
         s.position.set(d.x, 0, d.z);
@@ -429,6 +449,30 @@ export class World {
         onWall(g, d.x, d.z, rot, 1.95);
       }
     }
+    if (env.floor === 'tile') this.laneStripes(env, root);
+  }
+
+  /** Hospital wayfinding stripes down the walking lane, chevrons pointing to the back wall. */
+  private laneStripes(env: EnvironmentDef, root: THREE.Group): void {
+    const LEN = 11.5, WID = 0.95;
+    const tex = canvasTex('lane-stripes', 128, 640, (ctx, w, h) => {
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = '#5a8ade'; ctx.fillRect(w * 0.18, 0, w * 0.1, h);
+      ctx.fillStyle = '#2fae9d'; ctx.fillRect(w * 0.72, 0, w * 0.1, h);
+      ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 9; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      for (let y = 70; y < h; y += 128) {
+        ctx.beginPath(); ctx.moveTo(w * 0.36, y + 22); ctx.lineTo(w * 0.5, y); ctx.lineTo(w * 0.64, y + 22); ctx.stroke();
+      }
+    });
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(WID, LEN), new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.4, depthWrite: false }));
+    m.rotation.x = -Math.PI / 2;
+    m.renderOrder = 1;
+    const g = new THREE.Group();
+    g.add(m);
+    const c = uv(-0.05, 0.35);
+    g.position.set(c.x, 0.013, c.z);
+    g.rotation.y = env.camYaw;
+    root.add(g);
   }
 
   private hidden: THREE.Object3D[] = [];
@@ -538,6 +582,7 @@ export class World {
 
   dispose(): void {
     this.puffs = [];
+    this.monitors.length = 0;
     this.hidden = [];
     const lvl = this.scene.getObjectByName('level');
     if (lvl) this.scene.remove(lvl);

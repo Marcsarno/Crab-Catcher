@@ -516,6 +516,8 @@ export interface PatientRig {
   state: 'awake' | 'anxious' | 'asleep' | 'stirring' | 'happy';
   t: number;
   monitored: THREE.Group;
+  /** Rising "z" sprites shown while sedated. */
+  zzz?: THREE.Sprite[];
 }
 
 /** A patient lying on their back, head toward local +x. */
@@ -634,7 +636,34 @@ export function makeLyingPatient(look: { skin: string; hair: string; gown: strin
   root.add(monitored);
 
   root.traverse((o) => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).castShadow = true; });
-  return { root, head: pivot, eyes, mouth, brows, blanket, warmBlanket, drape, state: 'awake', t: 0, monitored };
+  const zzz = [0, 1, 2].map(() => {
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: zTexture(), transparent: true, depthWrite: false, opacity: 0 }));
+    sp.visible = false;
+    sp.renderOrder = 5;
+    root.add(sp);
+    return sp;
+  });
+  return { root, head: pivot, eyes, mouth, brows, blanket, warmBlanket, drape, state: 'awake', t: 0, monitored, zzz };
+}
+
+let zTex: THREE.CanvasTexture | null = null;
+function zTexture(): THREE.CanvasTexture {
+  if (zTex) return zTex;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = 96;
+  const ctx = cv.getContext('2d')!;
+  ctx.font = '900 76px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineWidth = 12;
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = '#2b5fb4';
+  ctx.strokeText('Z', 48, 52);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText('Z', 48, 52);
+  zTex = new THREE.CanvasTexture(cv);
+  zTex.colorSpace = THREE.SRGBColorSpace;
+  return zTex;
 }
 
 export function animatePatient(p: PatientRig, dt: number): void {
@@ -648,6 +677,15 @@ export function animatePatient(p: PatientRig, dt: number): void {
   p.mouth.rotation.z = anxious ? 0 : Math.PI;
   p.mouth.position.y = anxious ? -0.11 : -0.096;
   p.mouth.visible = !asleep;
+  if (p.zzz) {
+    p.zzz.forEach((sp, i) => {
+      const k = (t * 0.45 + i / 3) % 1;
+      sp.visible = asleep;
+      sp.position.set(0.95 + k * 0.3, 0.75 + k * 0.85, 0.05 + Math.sin(k * 6 + i) * 0.06);
+      sp.scale.setScalar(0.22 + k * 0.3);
+      (sp.material as THREE.SpriteMaterial).opacity = Math.sin(k * Math.PI) * 0.95;
+    });
+  }
   // breathing
   p.blanket.scale.y = 1 + Math.sin(t * (asleep ? 1.6 : 2.4)) * 0.06;
   if (p.eyes.length) {

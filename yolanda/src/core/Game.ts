@@ -58,11 +58,14 @@ export interface GameUI {
   openHandoff(c: CaseRT, facts: { text: string; correct: boolean }[], done: (picked: number[]) => void): void;
   showResults(r: ScoreResult): void;
   bump(stationId: string): void;
+  /** Speech bubble over 'yolanda', an npc id, or `patient:<caseId>`. */
+  say(who: string, text: string, ms?: number): void;
   /** Floating feedback text rising from a station tag. */
-  pop(stationId: string, text: string, kind?: 'good' | 'ready'): void;
+  pop(stationId: string, text: string, kind?: 'good' | 'ready' | 'parallel'): void;
   reveal(title: string, text: string): void;
 }
 
+const pick = <T,>(xs: T[]): T => xs[Math.floor(Math.random() * xs.length)];
 const YOLANDA_SPEED = 3.1;
 const PROC_LOOK: HumanLook = { skin: '#8d5a3b', hair: '#1f1a17', hairStyle: 'cap', capColor: '#4a7fc6', top: '#4a7fc6', pants: '#3f6fb0', shoes: '#e8eef3', mask: true };
 const SURGEON_LOOK: HumanLook = { ...PROC_LOOK };
@@ -202,6 +205,11 @@ export class Game {
     for (const sv of this.world.stations.values()) {
       if (!this.inZone(sv.stand)) continue;
       zone.push(...extent(sv));
+    }
+    for (const sv of this.world.stations.values()) {
+      if (!this.inZone(sv.stand) || !['bay', 'preop', 'ortable'].includes(sv.def.kind)) continue;
+      // the doctor's spot and Yolanda's spot beside the bed, head height included
+      for (const p of [this.procSpot(sv), sv.stand]) zone.push(new THREE.Vector3(p.x, 0, p.z), new THREE.Vector3(p.x, 2.4, p.z));
     }
     this.cam.define('active', zone, fy, fp, [0.04, 0.04, 0.5, 0.4]);
     // PREP: push in on the supply cart — same angle again
@@ -354,7 +362,12 @@ export class Game {
         if (t.def.special === 'transport') { this.beginTransport(t); return; }
         if (t.def.special === 'handoff') { this.beginHandoff(t); return; }
         if (t.def.special === 'moveBed') { this.beginTransport(t); return; }
+        const running = this.ts.list().filter((x) => x.state === 'running' && !x.def.auto).length;
         this.ts.start(t, 'yolanda', this.inv);
+        if (running > 0) {
+          this.metrics.parallelActions++;
+          this.ui.pop(stationId, `⚙ ×${running + 1} Parallel!`, 'parallel');
+        }
         if (t.def.requiredItems.length) this.audio.play('drop');
         if (t.def.process) this.audio.play('machine');
         if (t.state === 'working') {
@@ -529,6 +542,7 @@ export class Game {
       this.world.yolanda.anim = 'idle';
       this.audio.play('complete');
       this.ui.toast(wrong ? 'Handoff given (a few details were off)' : `Clean handoff — ${c.patient.name} is in good hands.`, wrong ? 'warn' : 'good');
+      this.ui.say('pacu', wrong ? 'Hmm, I\'ll double-check the chart.' : pick(['Got it — thanks, Yolanda!', 'Perfect report. We\'ve got them.']), 3200);
     });
   }
 
@@ -559,6 +573,7 @@ export class Game {
       c.proceduralistPresent = true;
       this.metrics.proceduralistArrived[c.id] = this.ts.time;
       this.ui.toast(`${c.template.proceduralist.name} is here.`, 'info');
+      this.ui.say(`proc-${c.id}`, pick(['Morning! Ready when you are.', 'Whenever you are ready.', 'Good to go on my side.']));
       rig.root.rotation.y = Math.atan2(bay.center.x - spot.x, bay.center.z - spot.z);
     });
     if (bay.def.kind === 'ortable') {
@@ -638,9 +653,12 @@ export class Game {
       const proc = this.world.npcs.get(`proc-${c.id}`);
       if (proc) proc.anim = 'interact';
       if (!this.tutorialOn) this.ui.toast('Sedation started — procedure underway', 'good');
+      this.ui.say(`patient:${c.id}`, 'Mmm… so… sleepy…', 2200);
+      setTimeout(() => this.ui.say(`proc-${c.id}`, isOR ? 'Starting now.' : 'Scope in. Here we go.'), 1500 / this.speed);
     } else if (c.phase === 'closing') {
       this.resolveMissedAlerts(c);
       this.ui.toast(`${c.template.proceduralist.name}: "Closing now."`, 'info');
+      this.ui.say(`proc-${c.id}`, 'Closing now.');
     } else if (c.phase === 'recovery') {
       this.resolveMissedAlerts(c);
       pr.drape.visible = false;
@@ -652,6 +670,7 @@ export class Game {
         this.walk(proc, this.world.env.door, 2.4, () => { proc.root.visible = false; });
       }
       if (!this.tutorialOn) this.ui.toast('Procedure complete — time to wake up', 'good');
+      this.ui.say(`proc-${c.id}`, 'All done! Nice work, Yolanda.', 3200);
     } else if (c.phase === 'done') {
       // bed leaves with the PACU nurse
       const bed = this.beds.get(c.id)!;
@@ -836,9 +855,12 @@ export class Game {
     }
     const pr = this.world.patients.get(c.id)!;
     if (t.def.id === 'apply_monitors') pr.monitored.visible = true;
-    if (t.def.id === 'comfort_chat') { pr.warmBlanket.visible = true; pr.state = 'happy'; this.ui.toast(`${c.patient.name} relaxes. ♥`, 'good'); }
-    if (t.def.id === 'wake_check') pr.state = 'awake';
-    if (t.def.id === 'assess_patient' && pr.state === 'anxious') pr.state = 'awake';
+    if (t.def.id === 'comfort_chat') { pr.warmBlanket.visible = true; pr.state = 'happy'; this.ui.toast(`${c.patient.name} relaxes. ♥`, 'good'); this.ui.say(`patient:${c.id}`, pick(['Oh, a warm blanket. Thank you!', 'That helps a lot. ♥'])); }
+    if (t.def.id === 'wake_check') { pr.state = 'awake'; this.ui.say(`patient:${c.id}`, pick(['Mmm… is it over?', 'Did I sleep? Thank you.'])); }
+    if (t.def.id === 'assess_patient') {
+      if (pr.state === 'anxious') pr.state = 'awake';
+      this.ui.say(`patient:${c.id}`, c.patient.anxious ? 'OK… that makes me feel better.' : 'Sounds good to me.');
+    }
     if (t.state === 'running') this.ui.toast(`${t.def.label ?? t.def.name} started · ${Math.round(t.def.process ?? 0)}s`, 'info');
   }
 
@@ -998,8 +1020,19 @@ export class Game {
 
   // ------------------------------------------------------------------ visuals
 
+  private halfSaid = new Set<string>();
+
   private updateVisuals(dt: number, dtReal: number): void {
     const w = this.world;
+    // mid-procedure beat so the long middle stretch has some life
+    for (const c of this.ts.cases) {
+      if (c.phase !== 'active' || this.halfSaid.has(c.id)) continue;
+      const proc = this.ts.get(c.id, 'procedure');
+      if (proc?.def.process && proc.processLeft > 0 && proc.processLeft < proc.def.process * 0.5) {
+        this.halfSaid.add(c.id);
+        this.ui.say(`proc-${c.id}`, pick(['Looking good so far.', 'Steady as she goes.', 'Halfway there.']));
+      }
+    }
     const carrying = this.inv.items.length > 0;
     animateRig(w.yolanda, dt || dtReal * 0.5, carrying);
     for (const rig of w.npcs.values()) animateRig(rig, dt || dtReal * 0.5, false);
@@ -1011,6 +1044,17 @@ export class Game {
       const stirring = this.ts.list().some((t) => t.caseId === id && t.event && t.state !== 'done' && t.event.def.vitals?.comfort);
       if (c.phase === 'active' || c.phase === 'closing') pr.state = stirring ? 'stirring' : 'asleep';
       animatePatient(pr, dt || dtReal * 0.5);
+    }
+    const nRun = this.ts.list().filter((x) => x.state === 'running' && !x.def.auto).length;
+    if (nRun > this.metrics.peakParallel) this.metrics.peakParallel = nRun;
+    // monitors show the patient they belong to: standby until the leads are on
+    const fcase = this.focusCase();
+    for (const m of w.monitors) {
+      const c = this.ts.cases.find((x) => x.patient.bay === m.stationId) ?? fcase;
+      const v = this.ts.vitals(c);
+      const live = c.phase === 'prep' ? !!w.patients.get(c.id)?.monitored.visible : c.phase !== 'done';
+      m.mon.set({ hr: v.hr, spo2: v.spo2, live });
+      m.mon.update(dt || dtReal * 0.5);
     }
     // station lights
     for (const sv of w.stations.values()) {
@@ -1072,6 +1116,8 @@ export class Game {
     // case card dismissed → prep close-up
     this.audio.unlock();
     this.openPrep();
+    const first = this.ts.cases[0];
+    if (first?.patient.anxious) setTimeout(() => { if (this.mode === 'room') this.ui.say(`patient:${first.id}`, "I'm a little nervous…", 3200); }, 4500);
   }
 
   debugComplete(t: TaskRT): void {

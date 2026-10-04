@@ -219,6 +219,8 @@ export function screenMesh(w: number, h: number, icon: ScreenIcon, tint = C.scre
   });
   const m = plane(w, h, new THREE.MeshBasicMaterial({ map: tex, toneMapped: false }));
   m.castShadow = false;
+  m.userData.screenIcon = icon;
+  m.userData.screenTint = tint;
   return m;
 }
 

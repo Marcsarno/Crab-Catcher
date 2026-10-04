@@ -524,4 +524,27 @@ export function makeSink(): THREE.Group {
   return g;
 }
 
+/** Yellow A-frame "wet floor" sign. */
+export function makeWetSign(): THREE.Group {
+  const g = new THREE.Group();
+  for (const s of [-1, 1]) {
+    const panel = rbox(0.42, 0.78, 0.04, C.yellow, 0.03);
+    panel.position.set(0, 0.4, s * 0.14);
+    panel.rotation.x = -s * 0.2;
+    g.add(panel);
+    const band = rbox(0.3, 0.06, 0.045, C.navy, 0.01, false);
+    band.position.set(0, 0.66, s * 0.14 + s * 0.015);
+    band.rotation.x = -s * 0.2;
+    g.add(band);
+    for (const [txt, y, w, h] of [['CAUTION', 0.58, 0.34, 0.1], ['WET', 0.42, 0.3, 0.14], ['FLOOR', 0.27, 0.34, 0.12]] as [string, number, number, number][]) {
+      const tp = textPlane(txt, w, h, C.navy, null, 'bold 120px system-ui, sans-serif');
+      tp.position.set(0, y, s * 0.14 + s * 0.026 - s * (0.78 - 2 * y) * 0.02);
+      tp.rotation.set(-s * 0.2, s === 1 ? 0 : Math.PI, 0);
+      g.add(tp);
+    }
+  }
+  g.add(at(rbox(0.46, 0.04, 0.02, C.darkGray, 0.01, false), 0, 0.78, 0));
+  return g;
+}
+
 export { cyl };

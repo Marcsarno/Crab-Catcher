@@ -7,6 +7,7 @@ const levelId = process.argv.find((a) => /^L\d$/.test(a)) ?? 'L1';
 const speed = Number((process.argv.find((a) => a.startsWith('--speed=')) ?? '--speed=4').split('=')[1]);
 const shots = process.argv.includes('--shots');
 const lazy = process.argv.includes('--lazy');
+const timeline = Number((process.argv.find((a) => a.startsWith('--timeline=')) ?? '--timeline=0').split('=')[1]); // screenshot every N ms (real time)
 const follow = process.argv.includes('--follow'); // only does what the on-screen next-step suggestion says // naive player: quick tasks first, never pages or delegates
 const url = process.env.URL ?? 'http://localhost:5173/';
 
@@ -26,6 +27,7 @@ await page.evaluate(([id, sp]) => {
 }, [levelId, speed]);
 
 // The bot runs inside the page so it reacts every frame-ish.
+await page.evaluate((ms) => { window.__BOT_MS = ms; }, Number(process.env.BOT_MS ?? 240000));
 const botPromise = page.evaluate(async ([lazy, follow]) => {
   const app = window.__yolanda;
   const log = [];
@@ -36,7 +38,7 @@ const botPromise = page.evaluate(async ([lazy, follow]) => {
   const say = (s) => { if (s !== lastLog) { log.push(`[t=${g().ts.time.toFixed(1)}] ${s}`); lastLog = s; } };
   // stations in a sensible preference order (slow machines first)
   const pref = lazy ? ['chart', 'orchart', 'bay2', 'bay1', 'ortable', 'supplies', 'scopeair', 'vitadock', 'sedaprep', 'airready', 'thermanest', 'workstation', 'handoff'] : ['thermanest', 'workstation', 'airready', 'vitadock', 'sedaprep', 'scopeair', 'chart', 'orchart', 'supplies', 'bay2', 'bay1', 'ortable', 'handoff'];
-  while (performance.now() - t0 < 240000) {
+  while (performance.now() - t0 < (window.__BOT_MS || 240000)) {
     const game = g();
     if (game.mode === 'results') break;
     if (game.mode === 'paused') {
@@ -102,6 +104,16 @@ const botPromise = page.evaluate(async ([lazy, follow]) => {
   return { log, mode: g().mode, result: g().result, metrics: g().metrics, time: g().ts.time };
 }, [lazy, follow]);
 
+if (timeline) {
+  let n = 0;
+  const t0 = Date.now();
+  while (Date.now() - t0 < 240000) {
+    const mode = await page.evaluate(() => window.__yolanda.game.mode);
+    await page.screenshot({ path: `${process.env.OUT ?? 'shots'}/tl-${levelId}-${String(n++).padStart(3, '0')}.png` });
+    if (mode === 'results') break;
+    await page.waitForTimeout(timeline);
+  }
+}
 // Snapshot each phase change (and a few moments inside it) while the bot plays.
 if (shots) {
   let lastKey = '';

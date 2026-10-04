@@ -466,14 +466,14 @@ button { font-family: inherit; }
 @keyframes chev { from { transform: translateY(-6px); } to { transform: translateY(2px); } }
 
 /* floating feedback over station tags */
-.pop { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 3; }
-.pop span {
+.fxpop { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 3; }
+.fxpop span {
   display: block; transform: translate(-50%, 0); font-weight: 900; font-size: 17px; color: #fff; white-space: nowrap;
   padding: 3px 11px; border-radius: 12px; border: 2.5px solid #fff; box-shadow: 0 4px 10px rgba(20,40,70,.3);
   animation: popup 1.35s cubic-bezier(.2,.9,.3,1.2) forwards;
 }
-.pop.good span { background: var(--green); min-width: 34px; text-align: center; }
-.pop.ready span { background: var(--teal); }
+.fxpop.good span { background: var(--green); min-width: 34px; text-align: center; }
+.fxpop.ready span { background: var(--teal); }
 @keyframes popup {
   0% { transform: translate(-50%, 10px) scale(.4); opacity: 0; }
   18% { transform: translate(-50%, -4px) scale(1.15); opacity: 1; }
@@ -506,3 +506,26 @@ button { font-family: inherit; }
   background: radial-gradient(circle, #fff 0 52%, transparent 54%), conic-gradient(var(--teal, #2fae9d) var(--p, 0%), rgba(30,53,80,.25) 0);
   border: 2.5px solid #fff; box-shadow: 0 3px 8px rgba(20,40,70,.3);
 }
+
+/* speech bubbles */
+.say { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 4; transition: opacity .35s; }
+.say span {
+  display: block; position: relative; max-width: 136px; padding: 4px 9px; border-radius: 12px; background: #fff; color: var(--navy);
+  font-weight: 800; font-size: 11.5px; line-height: 1.2; text-align: center; box-shadow: 0 3px 9px rgba(20,40,70,.25);
+  animation: sayin .28s cubic-bezier(.2,1.5,.4,1) both; transform-origin: 50% 100%; margin-bottom: 8px;
+}
+.say span::after { content: ''; position: absolute; left: 50%; bottom: -6px; margin-left: -6px; border: 6px solid transparent; border-bottom: 0; border-top-color: #fff; }
+.say.fade { opacity: 0; }
+@keyframes sayin { from { transform: scale(.3); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+.fxpop.parallel span { background: linear-gradient(135deg, #f5a623, #f5c542); color: var(--navy); }
+.tk-head .run { margin-left: auto; margin-right: 8px; font-style: normal; font-size: 11px; font-weight: 900; padding: 1px 8px; border-radius: 9px; background: #fff3d6; color: #a9630a; animation: runpulse 1.6s ease-in-out infinite; }
+@keyframes runpulse { 50% { background: #ffe3a3; } }
+
+.results .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 6px 0 4px; }
+.results .stats div { background: #eef4fa; border-radius: 12px; padding: 6px 4px 5px; text-align: center; }
+.results .stats b { display: block; font-size: 19px; color: var(--navy); font-variant-numeric: tabular-nums; }
+.results .stats small { font-size: 10.5px; font-weight: 800; color: #6a8299; letter-spacing: .04em; text-transform: uppercase; }
+.tk-head b, .tk-head .run { white-space: nowrap; flex: none; }
+.tk-head .run { margin-right: auto; margin-left: 8px; }
+.tk-head > span { margin-left: 8px; }

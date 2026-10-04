@@ -13,12 +13,16 @@ export interface Metrics {
   proceduralistArrived: Record<string, number>;
   delegations: number;
   zoneBlocks: number;
+  /** Hands-on tasks started while at least one machine was already running. */
+  parallelActions: number;
+  /** Most machines running at the same moment. */
+  peakParallel: number;
 }
 
 export function newMetrics(): Metrics {
   return {
     walk: 0, wastedVisits: 0, waitTime: 0, wrongPicks: 0, drawerTrips: 0, handoffCorrect: {}, handoffWrong: {},
-    roomStart: -1, proceduralistArrived: {}, delegations: 0, zoneBlocks: 0,
+    roomStart: -1, proceduralistArrived: {}, delegations: 0, zoneBlocks: 0, parallelActions: 0, peakParallel: 0,
   };
 }
 

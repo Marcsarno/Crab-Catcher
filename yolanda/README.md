@@ -19,6 +19,8 @@ npm run playtest     # headless bot plays Level 1 end to end (needs `npm run dev
 node scripts/playtest.mjs L2 --speed=4 --shots   # other levels, phase screenshots in shots/
 node scripts/playtest.mjs L1 --lazy              # naive player, to check scoring spread
 node scripts/playtest.mjs L1 --follow            # only follows the on-screen next-step hint
+node scripts/playtest.mjs L2 --follow --timeline=2500   # screenshot every 2.5 s of real time (BOT_MS=500000 for longer runs)
+node scripts/reach.mjs                           # every station reachable from every other, in every level
 node scripts/cv.mjs out.png "?d=6"              # character preview (dev/charview.html); ?st=makeSedaPrep,makeScopeAir for machines
 ```
 
@@ -34,6 +36,10 @@ node scripts/cv.mjs out.png "?d=6"              # character preview (dev/charvie
 - The **Prep Tray** holds 4 hand items. Fill it at the **Supplies** cart: one
   drawer at a time, tap an item to take it, tap a tray slot to put it back.
 - Machines run on their own. Start them, walk away, and come back when they show **READY**.
+  Start a hands-on task while a machine is running and you get a **Parallel!** callout; the
+  task card shows how many machines are running, and the results screen counts your parallel moves.
+- Monitors in the room are live: they stay on STANDBY until the leads are on, then show the
+  patient's real heart rate and SpO₂ (and flash red when it dips).
 - Once sedation begins, Yolanda stays in the **patient zone**. Answer alerts, document,
   and request the PACU bed early. In later cases, use **Team** to delegate.
 - Finish with the patient handoff. You're scored on Safety, Anticipation, Efficiency,

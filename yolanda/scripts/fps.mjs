@@ -1,0 +1,12 @@
+import { chromium } from 'playwright-core';
+const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+const p = await b.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, hasTouch: true, isMobile: true });
+await p.goto('http://localhost:5173/');
+await p.waitForFunction(() => window.__yolanda && document.querySelector('.lvl'), null, { timeout: 90000 });
+await p.evaluate(() => { const a = window.__yolanda; a.start(a.level, true); });
+await p.waitForTimeout(1500);
+await p.evaluate(() => window.__yolanda.game.closePrep());
+if (process.argv[2] === 'nomon') await p.evaluate(() => window.__yolanda.world.monitors.forEach((m) => { m.mon.update = () => {}; }));
+const fps = await p.evaluate(() => new Promise((res) => { let n = 0; const t0 = performance.now(); const f = () => { n++; if (performance.now() - t0 < 4000) requestAnimationFrame(f); else res(n / 4); }; requestAnimationFrame(f); }));
+console.log('fps', fps.toFixed(1));
+await b.close();

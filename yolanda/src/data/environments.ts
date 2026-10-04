@@ -49,6 +49,7 @@ const endoDecor: EnvironmentDef['decor'] = [
   { kind: 'plant', ...uv(4.7, 5.6), scale: 1.3 },
   { kind: 'trash', x: -6.0, z: -4.8 },
   { kind: 'coatrack', x: -6.05, z: -6.6 },
+  { kind: 'wetsign', ...uv(1.05, 0.7) },
 ];
 
 // Operating room: bigger, prep machines up top, the surgical field below.

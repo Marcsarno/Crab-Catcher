@@ -36,6 +36,7 @@ export class Hud implements GameUI {
   readonly el: HTMLElement;
   private labels: HTMLElement;
   private workRing = h('div', 'work-ring', '<i></i>');
+  private bubbles: { el: HTMLElement; who: string; until: number }[] = [];
   private top: HTMLElement;
   private tasksEl: HTMLElement;
   private careEl: HTMLElement;
@@ -51,6 +52,7 @@ export class Hud implements GameUI {
   private lastTasks = '';
   private lastSide = '';
   private v = new THREE.Vector3();
+  private vh = 1;
 
   constructor(root: HTMLElement, private hooks: HudHooks) {
     this.el = h('div', 'layer hud');
@@ -144,12 +146,38 @@ export class Hud implements GameUI {
     el.classList.add('bump');
   }
 
-  pop(id: string, text: string, kind: 'good' | 'ready' = 'good'): void {
+  /** A short speech bubble over a character: 'yolanda', an npc id, or `patient:<caseId>`. */
+  say(who: string, text: string, ms = 2800): void {
+    this.bubbles = this.bubbles.filter((b) => { if (b.who === who) { b.el.remove(); return false; } return true; });
+    const el = h('div', 'say', `<span>${text}</span>`);
+    this.labels.append(el);
+    this.bubbles.push({ el, who, until: performance.now() + ms });
+  }
+
+  private renderBubbles(camera: THREE.Camera, w: number): void {
+    const g = this.g;
+    const now = performance.now();
+    for (const b of this.bubbles) {
+      const rig = b.who === 'yolanda' ? g.world.yolanda.root : b.who.startsWith('patient:') ? g.world.patients.get(b.who.slice(8))?.root : g.world.npcs.get(b.who)?.root;
+      if (!rig || !rig.visible || now > b.until) { b.el.remove(); b.until = 0; continue; }
+      rig.getWorldPosition(this.v);
+      this.v.y += b.who.startsWith('patient:') ? 1.5 : 2.55;
+      this.v.project(camera);
+      const half = (b.el.offsetWidth || 120) / 2;
+      const x = Math.max(half + 6, Math.min(w - half - 6, (this.v.x * 0.5 + 0.5) * w));
+      const y = Math.max(112 + (b.el.offsetHeight || 40), (-this.v.y * 0.5 + 0.5) * this.vh);
+      b.el.style.transform = `translate(${x - half}px, ${y}px) translate(0, -100%)`;
+      b.el.classList.toggle('fade', b.until - now < 400);
+    }
+    this.bubbles = this.bubbles.filter((b) => b.until > 0);
+  }
+
+  pop(id: string, text: string, kind: 'good' | 'ready' | 'parallel' = 'good'): void {
     const el = this.labelEls.get(id);
     if (!el || this.labels.style.display === 'none') return;
     const m = /translate\(([-\d.]+)px, ([-\d.]+)px\)/.exec(el.style.transform);
     if (!m) return;
-    const p = h('div', `pop ${kind}`, `<span>${text}</span>`);
+    const p = h('div', `fxpop ${kind}`, `<span>${text}</span>`);
     p.style.transform = `translate(${Number(m[1]) + el.offsetWidth / 2}px, ${Number(m[2]) - 30}px)`;
     this.labels.append(p);
     setTimeout(() => p.remove(), 1400);
@@ -278,6 +306,7 @@ export class Hud implements GameUI {
     const card = h('div', 'card results', `<h1><small>${this.g.level.title}</small>CASE COMPLETE</h1>
       <div class="medal">${big}</div>
       <div class="verdict">${verdict} <b>${total}<span>/15</span></b></div>
+      <div class="stats"><div><b>${this.g.metrics.parallelActions}</b><small>Parallel moves</small></div><div><b>${Math.max(1, this.g.metrics.peakParallel)}</b><small>Peak machines</small></div><div><b>${Math.round(this.g.metrics.walk)} m</b><small>Walked</small></div></div>
       <div class="score-rows">${rows}</div>
       <div class="fb">${r.good.length ? `<div class="g"><h6>GOOD</h6><ul>${r.good.map((x) => `<li>${x}</li>`).join('')}</ul></div>` : ''}
       ${r.improve.length ? `<div class="i"><h6>IMPROVE</h6><ul>${r.improve.map((x) => `<li>${x}</li>`).join('')}</ul></div>` : ''}</div>`);
@@ -336,7 +365,9 @@ export class Hud implements GameUI {
     this.renderTray();
     this.renderCare(fc);
     this.renderSide(fc);
+    this.vh = hgt;
     this.renderLabels(camera, w, hgt);
+    this.renderBubbles(camera, w);
     if (this.sheet?.classList.contains('prep') && g.mode === 'prep') {
       const key = g.inv.slots.join(',');
       if (key !== this.sheet.dataset.key) { this.sheet.dataset.key = key; this.renderPrep(); }
@@ -378,11 +409,12 @@ export class Hud implements GameUI {
       }
       return '';
     };
-    const key = `${title}|${sug.text}|${sug.task?.key}|${doneN}|` + open.map((t) => `${t.key}:${t.state}:${timeLeft(t)}`).join('|') + g.inv.items.join();
+    const key = `${title}|${sug.text}|${sug.task?.key}|${doneN}|${g.ts.list().filter((x) => x.state === 'running' && !x.def.auto).length}|` + open.map((t) => `${t.key}:${t.state}:${timeLeft(t)}`).join('|') + g.inv.items.join();
     if (key === this.lastTasks) return;
     this.lastTasks = key;
     const MAX = 4;
-    let html = `<div class="tk-head"><b>${title}</b><span>${doneN}/${rows.length}</span></div>`;
+    const nRun = g.ts.list().filter((x) => x.state === 'running' && !x.def.auto).length;
+    let html = `<div class="tk-head"><b>${title}</b>${nRun ? `<em class="run">⚙ ${nRun} running</em>` : ''}<span>${doneN}/${rows.length}</span></div>`;
     if (sug.text && g.tutorialOn) html += `<div class="tk-next ${sug.urgent ? 'urgent' : ''}"><i>${sug.urgent ? '!' : '➜'}</i><span>${sug.text}</span></div>`;
     html += '<ul>';
     for (const t of open.slice(0, MAX)) {
