@@ -4,7 +4,7 @@ import { STATIONS } from '../data/stations';
 import { NavGrid, type Vec2 } from '../nav/NavGrid';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { hasModel, prop, type ModelName } from './assets';
-import { C, at, canvasTex, mat, plane, rbox, textPlane } from './palette';
+import { C, at, canvasTex, cyl, mat, plane, rbox, textPlane } from './palette';
 import {
   makeAirReady, makeBed, makeBench, makeChartDesk, makeHandoff, makePlant, makeScopeAir, makeSedaPrep,
   makeSink, makeSupplies, makeWorkstation, makeORTable, makeThermaNest, makeVitaDock, makeORChart, type StationModel,
@@ -374,6 +374,14 @@ export class World {
         g.add(at(rbox(0.07, 1.4, 0.18, C.white, 0.02), 0, 0, 0.06));
         g.add(at(rbox(2.4, 0.1, 0.32, C.white, 0.03), 0, -0.82, 0.1));
         onWall(g, d.x, d.z, rot, 1.85);
+        // warm sun patch on the floor in front of the window
+        const sun = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 3.4), this.sunMat());
+        sun.rotation.set(-Math.PI / 2, 0, rot === 1 ? Math.PI / 2 : 0);
+        const skew = new THREE.Matrix4().set(1, 0, 0, 0, -0.45, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
+        sun.geometry.applyMatrix4(skew);
+        sun.position.set(rot === 1 ? -W / 2 + 1.9 : d.x + 0.6, 0.014, rot === 1 ? d.z + 0.6 : -D / 2 + 1.9);
+        sun.renderOrder = 1;
+        root.add(sun);
       } else if (d.kind === 'door') {
         const g = new THREE.Group();
         g.add(at(rbox(1.6, 2.4, 0.12, C.white, 0.05), 0, 1.2, 0));
@@ -387,6 +395,24 @@ export class World {
         const tx = textPlane(env.sign, 2.9, 0.7, C.blueDeep, null, 'bold 120px system-ui, sans-serif', 'PEOPLE · SAFER CARE · HEALTHIER TOMORROW');
         g.add(at(tx, 0, 0, 0.045));
         onWall(g, d.x, d.z, rot, 2.25);
+        // wall clock and a sanitizer dispenser beside the sign
+        const clock = new THREE.Group();
+        clock.add(at(cyl(0.36, 0.36, 0.08, C.white, 28), 0, 0, 0).rotateX(Math.PI / 2));
+        const face = canvasTex('clock-face', 128, 128, (ctx, w, h) => {
+          ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(w / 2, h / 2, 60, 0, Math.PI * 2); ctx.fill();
+          ctx.strokeStyle = '#3b68c2'; ctx.lineWidth = 8; ctx.stroke();
+          ctx.fillStyle = '#1e3550';
+          for (let i = 0; i < 12; i++) { const a2 = (i / 12) * Math.PI * 2; ctx.fillRect(w / 2 + Math.sin(a2) * 46 - 3, h / 2 - Math.cos(a2) * 46 - 3, 6, 6); }
+          ctx.lineCap = 'round'; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(64, 64); ctx.lineTo(64, 30); ctx.stroke();
+          ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(64, 64); ctx.lineTo(90, 70); ctx.stroke();
+        });
+        clock.add(at(new THREE.Mesh(new THREE.CircleGeometry(0.32, 28), new THREE.MeshBasicMaterial({ map: face })), 0, 0, 0.045));
+        onWall(clock, d.x + (rot === 1 ? 0 : 2.3), d.z + (rot === 1 ? 2.3 : 0), rot, 2.45);
+        const disp = new THREE.Group();
+        disp.add(at(rbox(0.26, 0.42, 0.14, C.white, 0.05), 0, 0, 0.07));
+        disp.add(at(rbox(0.2, 0.12, 0.02, C.teal, 0.02, false), 0, 0.06, 0.15));
+        disp.add(at(rbox(0.08, 0.06, 0.1, C.lightGray, 0.02, false), 0, -0.24, 0.1));
+        onWall(disp, d.x - (rot === 1 ? 0 : 2.15), d.z - (rot === 1 ? 2.15 : 0), rot, 1.45);
       } else if (d.kind === 'poster') {
         const g = new THREE.Group();
         g.add(at(rbox(1.3, 1.5, 0.06, C.white, 0.06), 0, 0, 0));
@@ -405,13 +431,26 @@ export class World {
     }
   }
 
-  private faded = new Map<THREE.Mesh, THREE.Material | THREE.Material[]>();
+  private hidden: THREE.Object3D[] = [];
+  private sunMatCache: THREE.Material | null = null;
 
-  /** Cutaway: fade stations that stand between the camera and `focusId`. */
+  private sunMat(): THREE.Material {
+    if (this.sunMatCache) return this.sunMatCache;
+    const tex = canvasTex('sun-patch', 128, 128, (ctx, w, h) => {
+      const g = ctx.createRadialGradient(w / 2, h / 2, 10, w / 2, h / 2, w / 2);
+      g.addColorStop(0, 'rgba(255,240,205,0.9)'); g.addColorStop(0.65, 'rgba(255,236,196,0.55)'); g.addColorStop(1, 'rgba(255,236,196,0)');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+      // window mullion shadow
+      ctx.fillStyle = 'rgba(0,0,0,1)'; ctx.globalCompositeOperation = 'destination-out'; ctx.fillRect(w / 2 - 3, 0, 6, h);
+    });
+    this.sunMatCache = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.38, depthWrite: false, blending: THREE.AdditiveBlending });
+    return this.sunMatCache;
+  }
+
+  /** Cutaway: hide stations that stand between the camera and `focusId` (clean close-ups, no ghosts). */
   setCutaway(focusId: string | null): void {
-    // restore everything first
-    for (const [m, orig] of this.faded) m.material = orig;
-    this.faded.clear();
+    for (const o of this.hidden) o.visible = true;
+    this.hidden = [];
     if (!focusId) return;
     const f = this.stations.get(focusId);
     if (!f) return;
@@ -423,13 +462,7 @@ export class World {
       if (sv === f) continue;
       const u = uOf(sv.center.x, sv.center.z), v = vOf(sv.center.x, sv.center.z);
       if (v <= fv || v - fv > 4.5 || Math.abs(u - fu) > 2.4) continue;
-      sv.model.traverse((o) => {
-        const m = o as THREE.Mesh;
-        if (!m.isMesh) return;
-        this.faded.set(m, m.material);
-        const fade = (mat: THREE.Material) => { const c = mat.clone(); c.transparent = true; c.opacity = 0.18; c.depthWrite = false; return c; };
-        m.material = Array.isArray(m.material) ? m.material.map(fade) : fade(m.material);
-      });
+      if (sv.model.visible) { sv.model.visible = false; this.hidden.push(sv.model); }
     }
   }
 
@@ -472,7 +505,7 @@ export class World {
   }
 
   dispose(): void {
-    this.faded.clear();
+    this.hidden = [];
     const lvl = this.scene.getObjectByName('level');
     if (lvl) this.scene.remove(lvl);
     this.showNavDebug(false);

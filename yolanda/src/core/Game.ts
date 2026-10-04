@@ -58,6 +58,8 @@ export interface GameUI {
   openHandoff(c: CaseRT, facts: { text: string; correct: boolean }[], done: (picked: number[]) => void): void;
   showResults(r: ScoreResult): void;
   bump(stationId: string): void;
+  /** Floating feedback text rising from a station tag. */
+  pop(stationId: string, text: string, kind?: 'good' | 'ready'): void;
   reveal(title: string, text: string): void;
 }
 
@@ -147,6 +149,10 @@ export class Game {
     this.ts.bus.on('ready', (t) => {
       this.audio.play('ready');
       this.ui.toast(`${t.def.label ?? t.def.name} READY`, 'good');
+      this.ui.pop(t.def.stationId, 'READY!', 'ready');
+    });
+    this.ts.bus.on('state', (t) => {
+      if (t.state === 'done' && !t.def.auto && !this.finished) this.ui.pop(t.def.stationId, '✓', 'good');
     });
     this.ts.bus.on('eventFired', (t) => {
       this.audio.play('alert');
@@ -568,7 +574,11 @@ export class Game {
     // foot of the bed, slightly to the left (Yolanda works on the right)
     const yaw = bay.rot * Math.PI / 2;
     const fx = Math.sin(yaw), fz = Math.cos(yaw);
-    return this.world.nav.nearestWalkable({ x: bay.center.x + fx * 1.75 - fz * 0.45, z: bay.center.z + fz * 1.75 + fx * 0.45 });
+    // pick whichever foot corner sits further inside the camera's view (screen-right)
+    const cy = Math.cos(this.world.env.camYaw), sy = Math.sin(this.world.env.camYaw);
+    const cands = [-0.55, 0.55].map((o) => this.world.nav.nearestWalkable({ x: bay.center.x + fx * 1.6 - fz * o, z: bay.center.z + fz * 1.6 + fx * o }));
+    const u = (p: Vec2) => p.x * cy - p.z * sy;
+    return u(cands[0]) > u(cands[1]) ? cands[0] : cands[1];
   }
 
   private walk(rig: Rig, to: Vec2, speed: number, onArrive?: () => void): void {
@@ -1006,7 +1016,7 @@ export class Game {
     }
     // bouncing "go here next" arrow
     const fs = this.focusStation ? w.stations.get(this.focusStation) : null;
-    w.arrow.visible = !!fs && this.mode === 'room' && !this.queue.items.some((q) => q.stationId === this.focusStation);
+    w.arrow.visible = false; // the HTML chevron on the station tag points the way now
     if (fs) {
       w.arrow.position.set(fs.center.x, fs.topY + 0.55 + Math.abs(Math.sin(this.elapsed * 3.2)) * 0.35, fs.center.z);
       w.arrow.rotation.y += dtReal * 1.5;

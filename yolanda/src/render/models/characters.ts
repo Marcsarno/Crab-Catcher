@@ -87,98 +87,155 @@ function makeModelRig(look: HumanLook): Rig | null {
   };
 }
 
+const geoCache = new Map<string, THREE.BufferGeometry>();
+function cached<T extends THREE.BufferGeometry>(key: string, make: () => T): T {
+  let g = geoCache.get(key) as T | undefined;
+  if (!g) { g = make(); geoCache.set(key, g); }
+  return g;
+}
+
+/** Smooth turned shape from a (radius, y) profile, flattened front-to-back. */
+function lathe(key: string, pts: [number, number][], color: string | THREE.Material, depth = 0.74): THREE.Mesh {
+  const g = cached(`la${key}`, () => {
+    const lg = new THREE.LatheGeometry(pts.map(([x, y]) => new THREE.Vector2(x, y)), 28);
+    lg.scale(1, 1, depth);
+    lg.computeVertexNormals();
+    return lg;
+  });
+  const m = new THREE.Mesh(g, typeof color === 'string' ? mat(color, { rough: 0.62 }) : color);
+  m.castShadow = true;
+  m.receiveShadow = true;
+  return m;
+}
+
+/** Partial sphere shell (hair caps, surgical caps): covers the top `theta` radians. */
+function shell(r: number, theta: number, color: string): THREE.Mesh {
+  const g = cached(`sh${r.toFixed(3)},${theta.toFixed(3)}`, () => new THREE.SphereGeometry(r, 30, 18, 0, Math.PI * 2, 0, theta));
+  const m = new THREE.Mesh(g, mat(color, { rough: 0.55, side: THREE.DoubleSide }));
+  m.castShadow = true;
+  return m;
+}
+
 function face(head: THREE.Group, look: HumanLook, r: number) {
   const eyes: THREE.Object3D[] = [];
+  const brows: THREE.Object3D[] = [];
+  const browColor = look.hairStyle === 'bald' || look.hairStyle === 'cap' ? '#4a3426' : look.hair;
   for (const s of [-1, 1]) {
     const eye = new THREE.Group();
-    const white = sph(r * 0.17, C.white, 12, false);
-    white.scale.set(1, 1.15, 0.6);
-    const pupil = sph(r * 0.12, C.black, 12, false);
-    pupil.position.z = r * 0.06;
-    pupil.scale.set(1, 1.15, 0.6);
-    const glint = sph(r * 0.035, '#ffffff', 6, false);
-    glint.position.set(r * 0.04, r * 0.05, r * 0.12);
-    eye.add(white, pupil, glint);
-    eye.position.set(s * r * 0.36, r * 0.08, r * 0.9);
+    const white = sph(r * 0.15, C.white, 14, false);
+    white.scale.set(0.95, 1.2, 0.5);
+    const iris = sph(r * 0.115, '#3b2a1e', 14, false);
+    iris.scale.set(1, 1.18, 0.45);
+    iris.position.set(s * -r * 0.012, -r * 0.012, r * 0.035);
+    const pupil = sph(r * 0.06, '#120c08', 10, false);
+    pupil.scale.set(1, 1.15, 0.4);
+    pupil.position.set(s * -r * 0.012, -r * 0.01, r * 0.07);
+    const glint = sph(r * 0.035, '#ffffff', 8, false);
+    glint.position.set(r * 0.04, r * 0.06, r * 0.085);
+    const glint2 = sph(r * 0.018, '#ffffff', 6, false);
+    glint2.position.set(-r * 0.035, -r * 0.05, r * 0.08);
+    eye.add(white, iris, pupil, glint, glint2);
+    eye.position.set(s * r * 0.33, -r * 0.04, r * 0.895);
+    eye.rotation.y = s * 0.28;
     head.add(eye);
     eyes.push(eye);
-    const brow = rbox(r * 0.3, r * 0.06, r * 0.06, look.hairStyle === 'bald' ? '#6b4a33' : look.hair, 0.01, false);
-    brow.position.set(s * r * 0.36, r * 0.36, r * 0.9);
-    brow.rotation.z = s * -0.12;
+    const brow = capsule(r * 0.032, r * 0.17, browColor, false);
+    brow.rotation.z = Math.PI / 2 + s * 0.14;
+    brow.position.set(s * r * 0.34, r * 0.25, r * 0.88);
     head.add(brow);
-    const cheek = sph(r * 0.12, '#f2a39a', 8, false);
-    cheek.scale.set(1, 0.6, 0.3);
-    cheek.position.set(s * r * 0.56, -r * 0.16, r * 0.8);
-    (cheek.material as THREE.MeshStandardMaterial) = mat('#f2a39a', { opacity: 0.55 });
+    brows.push(brow);
+    const cheek = new THREE.Mesh(cached('cheek', () => new THREE.CircleGeometry(r * 0.13, 16)), mat('#f08f86', { opacity: 0.42 }));
+    cheek.scale.set(1.2, 0.7, 1);
+    cheek.position.set(s * r * 0.55, -r * 0.24, r * 0.79);
+    cheek.rotation.y = s * 0.6;
     head.add(cheek);
   }
-  const nose = sph(r * 0.09, look.skin, 8, false);
-  nose.position.set(0, -r * 0.08, r * 0.98);
+  const nose = sph(r * 0.07, look.skin, 10, false);
+  nose.scale.set(1.1, 0.8, 0.8);
+  nose.position.set(0, -r * 0.13, r * 0.95);
   head.add(nose);
-  const mouth = torus(r * 0.16, r * 0.035, '#8c3b3b', Math.PI);
+  const mouth = torus(r * 0.1, r * 0.026, '#9a3d3d', Math.PI);
   mouth.rotation.z = Math.PI;
-  mouth.position.set(0, -r * 0.32, r * 0.92);
+  mouth.position.set(0, -r * 0.3, r * 0.9);
+  mouth.rotation.x = -0.35;
   head.add(mouth);
-  return { eyes, mouth };
+  return { eyes, mouth, brows };
 }
 
 function hair(head: THREE.Group, look: HumanLook, r: number) {
-  const hm = mat(look.hair);
   if (look.hairStyle === 'bald') return;
   if (look.hairStyle === 'cap') {
-    const cap = sph(r * 1.06, look.capColor ?? C.blue, 18);
-    cap.scale.set(1, 0.72, 1);
-    cap.position.y = r * 0.3;
+    const col = look.capColor ?? C.blue;
+    const cap = shell(r * 1.1, 1.72, col);
+    cap.scale.set(1.04, 0.92, 1.06);
+    cap.rotation.x = -0.5;
+    cap.position.set(0, r * 0.08, -r * 0.06);
     head.add(cap);
-    const band = cyl(r * 1.04, r * 1.04, r * 0.18, look.capColor ?? C.blue, 18);
-    band.position.y = r * 0.25;
+    const puff = sph(r * 0.8, col, 18);
+    puff.scale.set(1.2, 0.62, 1.15);
+    puff.position.set(0, r * 0.68, -r * 0.2);
+    head.add(puff);
+    const band = torus(r * 1.0, r * 0.06, mat(col, { rough: 0.6 }));
+    band.rotation.x = Math.PI / 2 - 0.5;
+    band.position.set(0, r * 0.32, r * 0.05);
+    band.scale.set(1.04, 1.06, 1);
     head.add(band);
     return;
   }
-  const cap = sph(r * 1.07, hm, 18);
-  cap.scale.set(1, 0.85, 1);
-  cap.position.set(0, r * 0.22, -r * 0.08);
+  const hc = look.hair;
+  // main cap, tilted back so the hairline sits high on the forehead and low at the nape
+  const cap = shell(r * 1.07, look.hairStyle === 'short' ? 1.62 : 1.85, hc);
+  cap.rotation.x = -0.72;
+  cap.position.set(0, r * 0.04, -r * 0.04);
   head.add(cap);
-  // fringe
-  const fringe = sph(r * 0.62, hm, 12);
-  fringe.scale.set(1.5, 0.5, 0.6);
-  fringe.position.set(-r * 0.15, r * 0.62, r * 0.55);
-  fringe.rotation.z = 0.2;
-  head.add(fringe);
+  // side-swept fringe
+  const fr1 = sph(r * 0.5, hc, 16);
+  fr1.scale.set(1.45, 0.55, 0.75);
+  fr1.position.set(-r * 0.28, r * 0.6, r * 0.58);
+  fr1.rotation.set(0.4, 0, 0.42);
+  head.add(fr1);
+  const fr2 = sph(r * 0.4, hc, 14);
+  fr2.scale.set(1.3, 0.55, 0.7);
+  fr2.position.set(r * 0.36, r * 0.62, r * 0.55);
+  fr2.rotation.set(0.4, 0, -0.35);
+  head.add(fr2);
+  // side locks in front of the ears
+  for (const s of [-1, 1]) {
+    const lock = sph(r * 0.3, hc, 12);
+    lock.scale.set(0.55, look.hairStyle === 'short' ? 0.9 : 1.35, 0.8);
+    lock.position.set(s * r * 0.9, look.hairStyle === 'short' ? r * 0.2 : r * 0.05, r * 0.12);
+    head.add(lock);
+  }
   if (look.hairStyle === 'ponytail') {
-    const tie = torus(r * 0.16, r * 0.07, look.tie ?? C.red);
-    tie.position.set(0, r * 0.45, -r * 1.0);
-    tie.rotation.x = 0.4;
-    head.add(tie);
     const tail = new THREE.Group();
-    tail.position.set(0, r * 0.45, -r * 1.05);
-    const p1 = sph(r * 0.3, hm, 12);
-    p1.scale.set(1.05, 1.5, 1.05);
-    p1.position.set(0, -r * 0.2, -r * 0.12);
-    const p2 = sph(r * 0.24, hm, 12);
-    p2.scale.set(1.0, 1.6, 1.0);
-    p2.position.set(0, -r * 0.62, -r * 0.18);
-    tail.add(p1, p2);
+    tail.position.set(0, r * 0.62, -r * 0.88);
+    const tie = torus(r * 0.17, r * 0.075, look.tie ?? C.red);
+    tie.rotation.x = 0.9;
+    tail.add(tie);
+    const segs: [number, number, number][] = [[0.3, -0.18, -0.2], [0.33, -0.55, -0.34], [0.27, -0.92, -0.36], [0.17, -1.2, -0.28]];
+    for (const [rr, y, z] of segs) {
+      const p = sph(r * rr, hc, 14);
+      p.scale.set(1, 1.35, 1);
+      p.position.set(0, r * y, r * z);
+      tail.add(p);
+    }
     tail.name = 'ponytail';
     head.add(tail);
   } else if (look.hairStyle === 'bun') {
-    const bun = sph(r * 0.38, hm, 12);
-    bun.position.set(0, r * 0.75, -r * 0.6);
+    const bun = sph(r * 0.42, hc, 16);
+    bun.position.set(0, r * 0.8, -r * 0.62);
     head.add(bun);
+    const tie = torus(r * 0.3, r * 0.06, look.tie ?? '#e0b13a');
+    tie.position.set(0, r * 0.62, -r * 0.5);
+    tie.rotation.x = 1.0;
+    head.add(tie);
   } else if (look.hairStyle === 'curly') {
-    for (let i = 0; i < 9; i++) {
-      const a = (i / 9) * Math.PI * 2;
-      const b = sph(r * 0.3, hm, 8);
-      b.position.set(Math.cos(a) * r * 0.75, r * 0.55 + Math.sin(i * 2.1) * r * 0.1, Math.sin(a) * r * 0.75 - r * 0.1);
+    for (let i = 0; i < 11; i++) {
+      const a = (i / 11) * Math.PI * 2;
+      const b = sph(r * 0.32, hc, 10);
+      b.position.set(Math.cos(a) * r * 0.82, r * 0.5 + Math.sin(i * 2.1) * r * 0.12, Math.sin(a) * r * 0.82 - r * 0.12);
       head.add(b);
     }
-  }
-  // sides
-  for (const s of [-1, 1]) {
-    const side = sph(r * 0.4, hm, 10);
-    side.scale.set(0.5, 1.1, 0.9);
-    side.position.set(s * r * 0.88, r * 0.05, -r * 0.15);
-    head.add(side);
   }
 }
 
@@ -188,63 +245,69 @@ export function makeHuman(look: HumanLook): Rig {
   const root = new THREE.Group();
   const body = new THREE.Group();
   root.add(body);
-  const s = look.scale ?? 1.15;
+  const s = look.scale ?? 1.12;
   body.scale.setScalar(s);
+  const isYolanda = look === YOLANDA_LOOK;
 
-  const hipY = 0.72;
-  // legs
+  const hipY = 0.64;
+  // legs (tapered scrub pants + rounded sneakers)
   const mkLeg = (side: number) => {
     const g = new THREE.Group();
-    g.position.set(side * 0.13, hipY, 0);
-    const leg = capsule(0.105, 0.42, look.pants);
-    leg.position.y = -0.3;
-    const shoe = rbox(0.2, 0.12, 0.3, look.shoes, 0.05);
-    shoe.position.set(0, -0.66, 0.05);
-    g.add(leg, shoe);
+    g.position.set(side * 0.115, hipY, 0);
+    const leg = lathe('leg', [[0, -0.6], [0.085, -0.6], [0.095, -0.5], [0.105, -0.2], [0.115, 0], [0.11, 0.06], [0, 0.08]], look.pants, 1);
+    const shoe = sph(0.11, look.shoes, 14);
+    shoe.scale.set(0.95, 0.62, 1.5);
+    shoe.position.set(0, -0.62, 0.05);
+    const sole = cyl(0.1, 0.1, 0.03, '#c9d3de', 14);
+    sole.scale.set(0.95, 1, 1.5);
+    sole.position.set(0, -0.655, 0.05);
+    g.add(leg, shoe, sole);
     body.add(g);
     return g;
   };
   const legL = mkLeg(-1), legR = mkLeg(1);
 
-  // torso (scrub top, slightly flared)
+  // torso: smooth scrub top, flared hem, rounded shoulders
   const torso = new THREE.Group();
-  const top = rbox(0.5, 0.58, 0.32, look.top, 0.13);
-  top.position.y = hipY + 0.27;
-  const hips = rbox(0.46, 0.2, 0.3, look.pants, 0.09);
-  hips.position.y = hipY + 0.02;
+  const top = lathe('top', [[0, -0.06], [0.24, -0.06], [0.265, 0.02], [0.245, 0.16], [0.25, 0.36], [0.255, 0.46], [0.2, 0.55], [0.1, 0.6], [0, 0.61]], look.top);
+  top.position.y = hipY - 0.02;
+  const hips = lathe('hips', [[0, -0.1], [0.215, -0.1], [0.235, 0], [0.235, 0.08], [0, 0.1]], look.pants);
+  hips.position.y = hipY;
   torso.add(top, hips);
   // V-neck
-  const v = rbox(0.16, 0.12, 0.02, look.skin, 0.02, false);
-  v.position.set(0, hipY + 0.5, 0.16);
-  v.rotation.z = Math.PI / 4;
+  const v = new THREE.Mesh(cached('vneck', () => new THREE.CircleGeometry(0.1, 3)), mat(look.skin));
+  v.rotation.z = -Math.PI / 2;
+  v.scale.set(1.1, 0.7, 1);
+  v.position.set(0, hipY + 0.5, 0.168);
+  v.rotation.x = -0.25;
   torso.add(v);
   if (look.badge) {
-    const badge = rbox(0.1, 0.13, 0.02, C.white, 0.015, false);
-    badge.position.set(0.13, hipY + 0.36, 0.165);
-    const stripe = rbox(0.1, 0.03, 0.022, C.blueDeep, 0.005, false);
-    stripe.position.set(0.13, hipY + 0.4, 0.166);
-    const clip = rbox(0.03, 0.04, 0.025, C.midGray, 0.005, false);
-    clip.position.set(0.13, hipY + 0.44, 0.166);
-    torso.add(badge, stripe, clip);
-    // pocket
-    const pocket = rbox(0.13, 0.1, 0.02, '#239a92', 0.02, false);
-    pocket.position.set(-0.13, hipY + 0.34, 0.163);
-    torso.add(pocket);
+    const badge = rbox(0.09, 0.12, 0.02, C.white, 0.015, false);
+    badge.position.set(0.12, hipY + 0.34, 0.185);
+    const stripe = rbox(0.09, 0.03, 0.022, C.blueDeep, 0.005, false);
+    stripe.position.set(0.12, hipY + 0.38, 0.186);
+    const lanyard = tube([new THREE.Vector3(0.08, hipY + 0.54, 0.15), new THREE.Vector3(0.11, hipY + 0.47, 0.18), new THREE.Vector3(0.12, hipY + 0.41, 0.187)], 0.008, look.tie ?? C.blueDeep);
+    torso.add(badge, stripe, lanyard);
+    const pocket = rbox(0.12, 0.09, 0.02, new THREE.Color(look.top).multiplyScalar(0.85).getStyle(), 0.02, false);
+    pocket.position.set(-0.12, hipY + 0.3, 0.182);
+    const pen = cyl(0.012, 0.012, 0.07, C.blueDeep, 6, false);
+    pen.position.set(-0.09, hipY + 0.35, 0.186);
+    torso.add(pocket, pen);
   }
   body.add(torso);
 
   // arms
   const mkArm = (side: number) => {
     const g = new THREE.Group();
-    g.position.set(side * 0.31, hipY + 0.5, 0);
-    const sleeve = sph(0.12, look.top, 12);
-    sleeve.scale.set(1, 0.9, 1);
-    const arm = capsule(0.068, 0.36, look.skin);
-    arm.position.y = -0.26;
-    const hand = sph(0.095, look.skin, 12);
-    hand.position.y = -0.5;
+    g.position.set(side * 0.27, hipY + 0.49, 0);
+    const sleeve = lathe('sleeve', [[0, 0.06], [0.1, 0.04], [0.105, -0.08], [0.092, -0.17], [0, -0.17]], look.top, 1);
+    const arm = capsule(0.062, 0.3, look.skin);
+    arm.position.y = -0.27;
+    const hand = sph(0.085, look.skin, 14);
+    hand.scale.set(0.9, 1.05, 0.9);
+    hand.position.y = -0.47;
     g.add(sleeve, arm, hand);
-    g.rotation.z = side * 0.08;
+    g.rotation.z = side * 0.1;
     body.add(g);
     return g;
   };
@@ -252,30 +315,25 @@ export function makeHuman(look: HumanLook): Rig {
 
   // head
   const head = new THREE.Group();
-  const r = 0.34; // big friendly head
-  head.position.y = hipY + 0.62 + r * 0.9;
-  const neck = cyl(0.07, 0.08, 0.14, look.skin, 10);
-  neck.position.y = -r * 0.95;
-  const skull = sph(r, look.skin, 22);
-  skull.scale.set(1, 0.98, 0.95);
-  head.add(neck, skull);
-  for (const sd of [-1, 1]) {
-    const ear = sph(r * 0.17, look.skin, 8);
-    ear.scale.set(0.5, 1, 0.8);
-    ear.position.set(sd * r * 0.95, 0, 0);
-    head.add(ear);
-  }
-  hair(head, look, r);
-  const { eyes, mouth } = face(head, look, r);
+  const r = 0.39; // big friendly head
+  head.position.y = hipY + 0.6 + r * 0.82;
+  const neck = cyl(0.065, 0.075, 0.16, look.skin, 12);
+  neck.position.y = -r * 0.86;
+  const hd = makeHead(look, r);
+  head.add(neck, hd.head);
+  const { eyes, mouth } = hd;
   if (look.mask) {
-    const mask = sph(r * 0.62, '#9fd3e8', 14);
-    mask.scale.set(1.25, 0.75, 0.55);
-    mask.position.set(0, -r * 0.25, r * 0.7);
+    const mask = sph(r * 0.6, '#a9d8ea', 18);
+    mask.scale.set(1.28, 0.78, 0.62);
+    mask.position.set(0, -r * 0.38, r * 0.6);
     head.add(mask);
+    for (const sd of [-1, 1]) {
+      const strap = torus(r * 0.5, r * 0.02, '#e8f4fa', Math.PI * 0.6);
+      strap.rotation.set(0, sd * Math.PI / 2, 0.2);
+      strap.position.set(sd * r * 0.82, -r * 0.1, r * 0.1);
+      head.add(strap);
+    }
     mouth.visible = false;
-  }
-  if (look.hairStyle === 'cap' || look.capColor) {
-    // already handled by hair()
   }
   body.add(head);
 
@@ -291,21 +349,22 @@ export function makeHuman(look: HumanLook): Rig {
     tray.add(tok);
     trayTokens.push(tok);
   }
-  tray.position.set(0, hipY + 0.28, 0.42);
+  tray.position.set(0, hipY + 0.26, 0.42);
   tray.visible = false;
   body.add(tray);
 
   // tablet in the right hand (Yolanda's signature prop)
-  const tablet = new THREE.Group();
-  tablet.add(rbox(0.26, 0.36, 0.04, '#24384f', 0.03));
-  const glow = rbox(0.21, 0.29, 0.01, '#7fd8ff', 0.01, false);
-  glow.position.z = 0.022;
-  tablet.add(glow);
-  tablet.position.set(0.02, -0.5, 0.12);
-  tablet.rotation.set(-0.3, 0, 0.1);
-  tablet.name = 'tablet';
-  tablet.visible = !!look.badge && look.hairStyle === 'ponytail';
-  armR.add(tablet);
+  if (isYolanda) {
+    const tablet = new THREE.Group();
+    tablet.add(rbox(0.24, 0.33, 0.035, '#24384f', 0.03));
+    const glow = rbox(0.19, 0.26, 0.01, '#7fd8ff', 0.01, false);
+    glow.position.z = 0.02;
+    tablet.add(glow);
+    tablet.position.set(0.02, -0.47, 0.11);
+    tablet.rotation.set(-0.3, 0, 0.1);
+    tablet.name = 'tablet';
+    armR.add(tablet);
+  }
 
   root.traverse((o) => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).castShadow = true; });
 
@@ -484,82 +543,89 @@ function makeModelPatient(look: { skin: string; gown: string; model?: string }):
   return { root, head: pivot, eyes: [], mouth: new THREE.Mesh(), brows: [], blanket, warmBlanket, drape, state: 'awake', t: 0, monitored };
 }
 
+/** Head with hair and face, shared by standing and lying people. Face toward +z. */
+function makeHead(look: HumanLook, r: number) {
+  const head = new THREE.Group();
+  const skull = sph(r, look.skin, 28);
+  skull.scale.set(1.03, 0.97, 0.96);
+  const jaw = sph(r * 0.8, look.skin, 20);
+  jaw.scale.set(1.08, 0.72, 0.98);
+  jaw.position.set(0, -r * 0.2, r * 0.08);
+  head.add(skull, jaw);
+  for (const sd of [-1, 1]) {
+    const ear = sph(r * 0.16, look.skin, 10);
+    ear.scale.set(0.45, 1, 0.75);
+    ear.position.set(sd * r * 0.98, -r * 0.05, 0);
+    head.add(ear);
+  }
+  hair(head, look, r);
+  const f = face(head, look, r);
+  return { head, ...f };
+}
+
 export function makeLyingPatient(look: { skin: string; hair: string; gown: string; hairStyle: string; model?: string }): PatientRig {
   const mp = makeModelPatient(look);
   if (mp) return mp;
   const root = new THREE.Group();
   root.scale.setScalar(1.12);
-  const body = rbox(1.5, 0.3, 0.62, look.gown, 0.14);
-  body.position.set(-0.1, 0.15, 0);
+  // pillow
+  const pillow = rbox(0.5, 0.14, 0.78, '#ffffff', 0.07);
+  pillow.position.set(0.86, 0.1, 0);
+  root.add(pillow);
+  // body in a gown, lying along x (head toward +x)
+  const body = lathe('ptorso', [[0, -0.75], [0.2, -0.75], [0.27, -0.55], [0.28, -0.1], [0.3, 0.3], [0.25, 0.5], [0.12, 0.56], [0, 0.57]], look.gown, 0.62);
+  body.rotation.z = -Math.PI / 2;
+  body.position.set(-0.05, 0.2, 0);
+  body.scale.set(0.55, 1, 1); // flatten front-to-back (local x is world up after the roll)
   root.add(body);
-  const blanket = rbox(1.25, 0.18, 0.78, C.blueLight, 0.08);
-  blanket.position.set(-0.42, 0.26, 0);
+  const blanket = rbox(1.45, 0.18, 0.88, C.blueLight, 0.08);
+  blanket.position.set(-0.38, 0.29, 0);
+  const fold = rbox(0.18, 0.2, 0.92, '#ffffff', 0.07);
+  fold.position.set(0.66, 0.02, 0);
+  blanket.add(fold);
   root.add(blanket);
-  const warmBlanket = rbox(1.0, 0.2, 0.82, '#f2b880', 0.08);
-  warmBlanket.position.set(-0.25, 0.3, 0);
+  const warmBlanket = rbox(1.0, 0.2, 0.9, '#f2b880', 0.08);
+  warmBlanket.position.set(-0.25, 0.34, 0);
   warmBlanket.visible = false;
   root.add(warmBlanket);
   const drape = rbox(1.6, 0.22, 1.25, '#2fae9d', 0.08);
-  drape.position.set(-0.25, 0.32, 0);
+  drape.position.set(-0.25, 0.36, 0);
   drape.visible = false;
   root.add(drape);
+  // arms resting on the blanket, hands on the belly
   for (const s of [-1, 1]) {
-    const arm = capsule(0.07, 0.5, look.skin);
-    arm.rotation.z = Math.PI / 2;
-    arm.position.set(0.25, 0.36, s * 0.36);
-    root.add(arm);
+    const sleeve = sph(0.11, look.gown, 12);
+    sleeve.scale.set(1.3, 0.9, 1);
+    sleeve.position.set(0.48, 0.34, s * 0.31);
+    const arm = capsule(0.06, 0.3, look.skin);
+    arm.rotation.set(0, s * 0.12, Math.PI / 2);
+    arm.position.set(0.2, 0.42, s * 0.3);
+    const hand = sph(0.075, look.skin, 12);
+    hand.position.set(-0.01, 0.43, s * 0.27);
+    root.add(sleeve, arm, hand);
   }
+  const r = 0.32;
   const pivot = new THREE.Group();
-  pivot.position.set(0.85, 0.3, 0);
-  const head = new THREE.Group();
+  pivot.position.set(0.82, 0.36, 0);
+  const { head, eyes, mouth, brows } = makeHead({ skin: look.skin, hair: look.hair, hairStyle: look.hairStyle as HumanLook['hairStyle'], top: look.gown, pants: look.gown, shoes: '#fff' }, r);
   pivot.add(head);
-  const r = 0.31;
-  const skull = sph(r, look.skin, 20);
-  head.add(skull);
-  const hm = mat(look.hair);
-  if (look.hairStyle !== 'bald') {
-    const capH = sph(r * 1.06, hm, 16);
-    capH.scale.set(1, 0.85, 1);
-    capH.position.set(0, r * 0.25, -r * 0.1);
-    head.add(capH);
-    if (look.hairStyle === 'bun') { const b = sph(r * 0.35, hm, 10); b.position.set(0, r * 0.4, -r * 0.95); head.add(b); }
-    if (look.hairStyle === 'curly') {
-      for (let i = 0; i < 7; i++) { const a = (i / 7) * Math.PI * 2; const b = sph(r * 0.28, hm, 8); b.position.set(Math.cos(a) * r * 0.75, r * 0.5, Math.sin(a) * r * 0.7 - r * 0.15); head.add(b); }
-    }
-  }
-  const eyes: THREE.Object3D[] = [];
-  const brows: THREE.Object3D[] = [];
-  for (const s of [-1, 1]) {
-    const e = sph(r * 0.13, C.black, 10, false);
-    e.scale.set(1, 1.1, 0.5);
-    e.position.set(s * r * 0.36, r * 0.05, r * 0.92);
-    head.add(e);
-    eyes.push(e);
-    const brow = rbox(r * 0.3, r * 0.06, r * 0.05, look.hairStyle === 'bald' ? '#5a4030' : look.hair, 0.01, false);
-    brow.position.set(s * r * 0.36, r * 0.32, r * 0.9);
-    head.add(brow);
-    brows.push(brow);
-  }
-  const mouth = torus(r * 0.15, r * 0.035, '#8c3b3b', Math.PI);
-  mouth.rotation.z = Math.PI;
-  mouth.position.set(0, -r * 0.35, r * 0.9);
-  head.add(mouth);
   // face points up (toward +y): rotate head so its +z faces +y, top toward +x
   pivot.rotation.set(-Math.PI / 2, 0, -Math.PI / 2);
   root.add(pivot);
 
   // monitoring leads (visible once monitors applied)
   const monitored = new THREE.Group();
-  const lead = rbox(0.2, 0.03, 0.2, C.teal, 0.02, false);
-  lead.position.set(0.35, 0.33, 0);
-  const clip = rbox(0.1, 0.08, 0.1, C.red, 0.03, false);
-  clip.position.set(0.25, 0.42, 0.42);
-  monitored.add(lead, clip);
+  const lead = tube([new THREE.Vector3(0.3, 0.36, 0.12), new THREE.Vector3(0.45, 0.5, 0.45), new THREE.Vector3(0.7, 0.55, 0.62)], 0.015, C.teal);
+  const clip = rbox(0.1, 0.07, 0.08, C.red, 0.03, false);
+  clip.position.set(-0.08, 0.45, 0.17);
+  const sticker = cyl(0.05, 0.05, 0.02, '#ffffff', 10, false);
+  sticker.position.set(0.3, 0.36, 0.12);
+  monitored.add(lead, clip, sticker);
   monitored.visible = false;
   root.add(monitored);
 
   root.traverse((o) => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).castShadow = true; });
-  return { root, head, eyes, mouth, brows, blanket, warmBlanket, drape, state: 'awake', t: 0, monitored };
+  return { root, head: pivot, eyes, mouth, brows, blanket, warmBlanket, drape, state: 'awake', t: 0, monitored };
 }
 
 export function animatePatient(p: PatientRig, dt: number): void {
@@ -569,9 +635,9 @@ export function animatePatient(p: PatientRig, dt: number): void {
   const blink = !asleep && (t % 4.1) < 0.14;
   for (const e of p.eyes) e.scale.y = asleep || blink ? 0.12 : 1.1;
   const anxious = p.state === 'anxious' || p.state === 'stirring';
-  p.brows.forEach((b, i) => { b.rotation.z = anxious ? (i ? 0.35 : -0.35) : 0; });
+  p.brows.forEach((b, i) => { const base = (b.userData.rz ??= b.rotation.z) as number; b.rotation.z = base + (anxious ? (i ? -0.35 : 0.35) : 0); });
   p.mouth.rotation.z = anxious ? 0 : Math.PI;
-  p.mouth.position.y = anxious ? -0.12 : -0.095;
+  p.mouth.position.y = anxious ? -0.11 : -0.096;
   p.mouth.visible = !asleep;
   // breathing
   p.blanket.scale.y = 1 + Math.sin(t * (asleep ? 1.6 : 2.4)) * 0.06;

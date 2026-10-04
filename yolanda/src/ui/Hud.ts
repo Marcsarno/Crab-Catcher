@@ -143,6 +143,17 @@ export class Hud implements GameUI {
     el.classList.add('bump');
   }
 
+  pop(id: string, text: string, kind: 'good' | 'ready' = 'good'): void {
+    const el = this.labelEls.get(id);
+    if (!el || this.labels.style.display === 'none') return;
+    const m = /translate\(([-\d.]+)px, ([-\d.]+)px\)/.exec(el.style.transform);
+    if (!m) return;
+    const p = h('div', `pop ${kind}`, `<span>${text}</span>`);
+    p.style.transform = `translate(${Number(m[1]) + el.offsetWidth / 2}px, ${Number(m[2]) - 30}px)`;
+    this.labels.append(p);
+    setTimeout(() => p.remove(), 1400);
+  }
+
   reveal(title: string, text: string): void {
     this.g.pause();
     const el = h('div', 'reveal', `<h3>${ICON.alert}${title}</h3><p>${text}</p>`);
@@ -259,7 +270,13 @@ export class Hud implements GameUI {
     const scr = h('div', 'screen results-screen');
     const cats: ScoreCat[] = ['safety', 'anticipation', 'efficiency', 'care', 'team'];
     const rows = cats.map((cat, ci) => `<div class="score-row"><span>${CAT_LABEL[cat]}</span><span class="stars">${[0, 1, 2].map((i) => `<span style="display:contents">${ICON.star.replace('<svg', `<svg class="${i < r.stars[cat] ? 'on' : ''}" style="animation-delay:${0.15 + ci * 0.25 + i * 0.08}s"`)}</span>`).join('')}</span></div>`).join('');
+    const total = cats.reduce((n, c) => n + r.stars[c], 0);
+    const medal = total >= 14 ? 3 : total >= 10 ? 2 : total >= 6 ? 1 : 0;
+    const verdict = ['Rough shift', 'Getting there', 'Smooth shift!', 'Ahead of the curve!'][medal];
+    const big = [0, 1, 2].map((i) => `<i class="${i < medal ? 'on' : ''}" style="animation-delay:${0.25 + i * 0.22}s">${ICON.star}</i>`).join('');
     const card = h('div', 'card results', `<h1><small>${this.g.level.title}</small>CASE COMPLETE</h1>
+      <div class="medal">${big}</div>
+      <div class="verdict">${verdict} <b>${total}<span>/15</span></b></div>
       <div class="score-rows">${rows}</div>
       <div class="fb">${r.good.length ? `<div class="g"><h6>GOOD</h6><ul>${r.good.map((x) => `<li>${x}</li>`).join('')}</ul></div>` : ''}
       ${r.improve.length ? `<div class="i"><h6>IMPROVE</h6><ul>${r.improve.map((x) => `<li>${x}</li>`).join('')}</ul></div>` : ''}</div>`);
@@ -277,6 +294,24 @@ export class Hud implements GameUI {
     card.append(btns);
     scr.append(card);
     this.el.append(scr);
+    this.hintEl?.remove();
+    this.hintEl = null;
+    if (medal >= 2) {
+      const colors = ['#f5b731', '#2fae9d', '#5a8ade', '#e86a6a', '#7fd36b', '#ffffff'];
+      const conf = h('div', 'confetti');
+      for (let i = 0; i < 46; i++) {
+        const c = document.createElement('i');
+        c.style.left = `${Math.random() * 100}%`;
+        c.style.background = colors[i % colors.length];
+        c.style.animationDelay = `${0.2 + Math.random() * 0.9}s`;
+        c.style.animationDuration = `${2.2 + Math.random() * 1.6}s`;
+        c.style.setProperty('--dx', `${(Math.random() - 0.5) * 140}px`);
+        c.style.setProperty('--rot', `${(Math.random() - 0.5) * 1440}deg`);
+        conf.append(c);
+      }
+      scr.append(conf);
+      setTimeout(() => conf.remove(), 4500);
+    }
     let n = 0;
     for (const cat of cats) for (let i = 0; i < r.stars[cat]; i++) setTimeout(() => this.g.audio.play('star'), 200 + n++ * 110);
   }
@@ -457,6 +492,7 @@ export class Hud implements GameUI {
       const qn = el.querySelector('.qn') as HTMLElement;
       const qTxt = cur ? '▶' : qi >= 0 ? String(qi + 1) : '';
       if (qn.textContent !== qTxt) qn.textContent = qTxt;
+      el.classList.toggle('queued', !!qTxt);
       qn.classList.toggle('hidden', !qTxt);
       const act = !locked && !ev && !ready && g.ts.actionable(id, g.inv);
       let dot = el.querySelector('.dot');

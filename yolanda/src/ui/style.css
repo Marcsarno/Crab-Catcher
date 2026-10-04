@@ -454,3 +454,44 @@ button { font-family: inherit; }
 .load-bar { width: 62%; height: 10px; border-radius: 6px; background: rgba(255,255,255,0.15); overflow: hidden; }
 .load-bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #2ba8a0, #7fd3c9); transition: width .2s; }
 .load-txt { color: #9fd0ff; font-weight: 700; font-size: 14px; margin: 0; }
+
+/* "go here next" chevron pinned above the highlighted station tag */
+.lbl.focus::before {
+  content: ''; position: absolute; left: 50%; top: -38px; width: 30px; height: 30px; margin-left: -15px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3E%3Cpath d='M9 3h12v10h6L15 27 3 13h6z' fill='%23f5b731' stroke='%23fff' stroke-width='2.5' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat;
+  filter: drop-shadow(0 3px 3px rgba(20,40,70,.35)); animation: chev .55s ease-in-out infinite alternate; pointer-events: none;
+}
+.lbl.focus:has(.badge:not(.hidden))::before { top: -66px; }
+.lbl.focus.queued::before { display: none; }
+@keyframes chev { from { transform: translateY(-6px); } to { transform: translateY(2px); } }
+
+/* floating feedback over station tags */
+.pop { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 3; }
+.pop span {
+  display: block; transform: translate(-50%, 0); font-weight: 900; font-size: 17px; color: #fff; white-space: nowrap;
+  padding: 3px 11px; border-radius: 12px; border: 2.5px solid #fff; box-shadow: 0 4px 10px rgba(20,40,70,.3);
+  animation: popup 1.35s cubic-bezier(.2,.9,.3,1.2) forwards;
+}
+.pop.good span { background: var(--green); min-width: 34px; text-align: center; }
+.pop.ready span { background: var(--teal); }
+@keyframes popup {
+  0% { transform: translate(-50%, 10px) scale(.4); opacity: 0; }
+  18% { transform: translate(-50%, -4px) scale(1.15); opacity: 1; }
+  30% { transform: translate(-50%, -8px) scale(1); }
+  75% { opacity: 1; }
+  100% { transform: translate(-50%, -46px) scale(.95); opacity: 0; }
+}
+
+/* results: overall medal, verdict, confetti */
+.results .medal { display: flex; justify-content: center; align-items: flex-end; gap: 6px; margin: 6px 0 2px; }
+.results .medal i { display: block; color: #d5dde5; }
+.results .medal i svg { width: 46px; height: 46px; display: block; }
+.results .medal i:nth-child(2) svg { width: 60px; height: 60px; }
+.results .medal i.on { color: var(--yellow); filter: drop-shadow(0 3px 0 #c98a10); animation: medal .5s cubic-bezier(.2,1.6,.4,1) both; }
+@keyframes medal { from { transform: scale(0) rotate(-40deg); opacity: 0; } to { transform: none; opacity: 1; } }
+.results .verdict { text-align: center; font-weight: 900; font-size: 18px; color: #1d7f79; margin-bottom: 4px; }
+.results .verdict b { margin-left: 6px; color: var(--navy); background: #eef4fa; border-radius: 9px; padding: 1px 8px; font-size: 16px; }
+.results .verdict b span { color: #6a8299; font-size: 12px; }
+.confetti { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 5; }
+.confetti i { position: absolute; top: -16px; width: 9px; height: 14px; border-radius: 2px; animation: fall linear forwards; }
+@keyframes fall { to { transform: translate(var(--dx), 110vh) rotate(var(--rot)); } }
