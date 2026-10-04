@@ -16,7 +16,7 @@ const errors = [];
 page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
 page.on('console', (m) => { if (m.type() === 'error' && !m.text().includes('ERR_CERT') && !m.text().includes('404')) errors.push(m.text()); });
 await page.goto(url);
-await page.waitForFunction(() => window.__yolanda);
+await page.waitForFunction(() => window.__yolanda && document.querySelector('.lvl'), null, { timeout: 90000 });
 
 await page.evaluate(([id, sp]) => {
   const app = window.__yolanda;

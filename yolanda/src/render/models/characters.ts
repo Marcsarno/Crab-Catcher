@@ -46,7 +46,6 @@ export interface Rig {
 export const YOLANDA_LOOK: HumanLook = {
   skin: '#f0c39c', hair: '#8a6239', hairStyle: 'ponytail', top: C.teal, pants: '#23968f',
   shoes: '#f4f6f8', badge: true, tie: '#e05656',
-  model: 'female-f', outfit: { top: '#33c4b8', pants: '#27aaa0', shoes: '#f4f6f8' },
 };
 
 /** Map game animation names to Kenney clip names. */

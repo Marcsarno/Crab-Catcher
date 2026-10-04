@@ -57,12 +57,12 @@ const orStations: StationPlacement[] = [
   P('thermanest', -0.3, -6.4, 0),
   P('handoff', -3.0, -4.7, 1),
   P('sedaprep', 2.6, -4.5, 0),
-  P('vitadock', -2.9, -1.5, 1),
-  P('supplies', 2.8, -1.1, 0),
-  P('ortable', -0.2, 2.4, 0, { x: 1.3, z: 0.1 }),
-  P('workstation', -3.1, 1.6, 1),
-  P('airready', 3.0, 2.1, 0),
-  P('orchart', -2.6, 5.1, 1),
+  P('vitadock', -3.0, -1.8, 1),
+  P('supplies', 2.9, -1.6, 0),
+  P('ortable', 0.1, 2.7, 0, { x: 1.3, z: 0.1 }),
+  P('workstation', -3.3, 1.4, 1),
+  P('airready', 3.3, 3.2, 0),
+  P('orchart', -2.9, 5.7, 1),
 ];
 
 export const ENVIRONMENTS: Record<string, EnvironmentDef> = {
@@ -78,8 +78,7 @@ export const ENVIRONMENTS: Record<string, EnvironmentDef> = {
       { kind: 'poster', x: -7.5, z: -3.0, rot: 1 },
       { kind: 'plant', ...uv(4.4, -3.4), scale: 1.2 },
       { kind: 'plant', ...uv(-4.6, -6.0), scale: 1.1 },
-      { kind: 'defib', ...uv(0.9, -2.6), rot: 0 },
-      { kind: 'trash', ...uv(-1.2, 6.2) },
+      { kind: 'defib', ...uv(-4.4, -0.2), rot: 1 },
       { kind: 'lamp', ...uv(4.3, 0.6) },
     ],
   },

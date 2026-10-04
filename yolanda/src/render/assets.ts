@@ -9,19 +9,7 @@ import { mat } from './palette';
 const BASE = `${import.meta.env.BASE_URL}assets/`;
 
 export const MODEL_FILES = {
-  // Kenney Mini Characters (CC0) — rigged + animated chibi people
-  'female-a': 'kenney-mini-characters/character-female-a.glb',
-  'female-b': 'kenney-mini-characters/character-female-b.glb',
-  'female-c': 'kenney-mini-characters/character-female-c.glb',
-  'female-d': 'kenney-mini-characters/character-female-d.glb',
-  'female-e': 'kenney-mini-characters/character-female-e.glb',
-  'female-f': 'kenney-mini-characters/character-female-f.glb',
-  'male-a': 'kenney-mini-characters/character-male-a.glb',
-  'male-b': 'kenney-mini-characters/character-male-b.glb',
-  'male-c': 'kenney-mini-characters/character-male-c.glb',
-  'male-d': 'kenney-mini-characters/character-male-d.glb',
-  'male-e': 'kenney-mini-characters/character-male-e.glb',
-  'male-f': 'kenney-mini-characters/character-male-f.glb',
+  // Kenney Mini Characters (CC0) — medical props only (the blocky people are not used)
   wheelchair: 'kenney-mini-characters/wheelchair.glb',
   defibrillator: 'kenney-mini-characters/aid-defibrillator-red.glb',
   // Kenney Furniture Kit (CC0)
@@ -72,7 +60,7 @@ export async function preloadAssets(onProgress?: (done: number, total: number) =
     }
     onProgress?.(++done, names.length);
   }));
-  loadedOk = cache.has('female-f');
+  loadedOk = cache.size > 0;
   return failed;
 }
 
@@ -191,6 +179,10 @@ export function character(n: ModelName, outfit: Outfit | null, height: number): 
   const src = cache.get(n);
   if (!src) return null;
   const obj = cloneSkinned(src.scene);
+  // keep only skinned body meshes (drops props such as the weapons in the Quaternius rigs)
+  const strip: THREE.Object3D[] = [];
+  obj.traverse((o) => { if ((o as THREE.Mesh).isMesh && !(o as THREE.SkinnedMesh).isSkinnedMesh) strip.push(o); });
+  for (const o of strip) o.parent?.remove(o);
   obj.traverse((o) => {
     const m = o as THREE.SkinnedMesh;
     if (!m.isMesh) return;

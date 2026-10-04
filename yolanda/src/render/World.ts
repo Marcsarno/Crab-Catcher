@@ -99,12 +99,13 @@ export class World {
   }
 
   /** Block a rectangle given in a station's local frame. */
-  private blockLocal(place: StationPlacement, lx: number, lz: number, w: number, d: number, grids: NavGrid[]): void {
+  private blockLocal(place: StationPlacement, lx: number, lz: number, w: number, d: number, grids: NavGrid[], pad = true): void {
     const yaw = (place.rot ?? 0) * Math.PI / 2;
     const c = Math.cos(yaw), s = Math.sin(yaw);
     const wx = place.x + lx * c + lz * s, wz = place.z - lx * s + lz * c;
     const odd = (place.rot ?? 0) % 2 === 1;
-    for (const g of grids) g.blockCentered(wx, wz, odd ? d : w, odd ? w : d);
+    const bw = odd ? d : w, bd = odd ? w : d;
+    for (const g of grids) g.blockRect(wx - bw / 2, wz - bd / 2, bw, bd, pad);
   }
 
   build(env: EnvironmentDef, level: LevelDef): void {
@@ -142,8 +143,8 @@ export class World {
       const fw = odd ? def.d : def.w, fd = odd ? def.w : def.d;
       if (def.kind === 'ortable') {
         this.blockLocal(place, 0, 0, 1.3, 2.9, [this.nav]);
-        this.blockLocal(place, 1.33 + 0.57, -1.05, 0.7, 0.7, [this.nav, this.navWide]); // light boom base
-        this.blockLocal(place, 1.33, 1.55, 1.1, 0.7, [this.nav, this.navWide]); // instrument table
+        this.blockLocal(place, -1.33 - 0.57, -1.05, 0.6, 0.6, [this.nav, this.navWide], false); // light boom base
+        this.blockLocal(place, -1.33, 1.55, 1.1, 0.66, [this.nav, this.navWide], false); // instrument table
         this.blob(root, place.x, place.z, 2.0, 3.4, yaw, 0.9);
       } else if (def.kind === 'bay' || def.kind === 'preop') {
         // the bed itself (the wide grid ignores beds: they move during transport)

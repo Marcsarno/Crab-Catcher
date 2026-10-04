@@ -383,7 +383,7 @@ export function makeORTable(): StationModel {
   boom.add(at(cyl(0.32, 0.36, 0.08, C.darkGray, 16), 0, 0.04, 0));
   boom.add(at(cyl(0.07, 0.07, 3.2, C.lightGray, 10), 0, 1.6, 0));
   const lightMat = mat('#fff6d8', { emissive: '#fff1c4', emissiveIntensity: 0.9 });
-  for (const [dx, dz, y] of [[-1.15, 0.4, 2.85], [-1.0, -0.6, 2.55]] as const) {
+  for (const [dx, dz, y] of [[1.15, 0.4, 2.85], [1.0, -0.6, 2.55]] as const) {
     const arm = rbox(Math.hypot(dx, dz), 0.1, 0.12, C.lightGray, 0.04);
     arm.position.set(dx / 2, y + 0.2, dz / 2);
     arm.rotation.y = -Math.atan2(dz, dx);
@@ -401,10 +401,10 @@ export function makeORTable(): StationModel {
       head.add(bulb);
     }
     head.position.set(dx, y, dz);
-    head.rotation.z = 0.25;
+    head.rotation.z = -0.25;
     boom.add(head);
   }
-  boom.position.set(W / 2 + 1.3, 0, -L / 2 + 0.3);
+  boom.position.set(-W / 2 - 1.3, 0, -L / 2 + 0.3);
   g.add(boom);
   // instrument table at the foot (like the concept art)
   const inst = new THREE.Group();
@@ -414,7 +414,7 @@ export function makeORTable(): StationModel {
   inst.add(at(cyl(0.12, 0.09, 0.08, C.lightGray, 14), -0.25, 0.94, 0));
   inst.add(at(rbox(0.3, 0.05, 0.08, C.midGray, 0.02), 0.2, 0.92, -0.1));
   inst.add(at(rbox(0.3, 0.05, 0.08, C.midGray, 0.02), 0.2, 0.92, 0.08));
-  inst.position.set(W / 2 + 0.75, 0, L / 2 + 0.2);
+  inst.position.set(-W / 2 - 0.75, 0, L / 2 + 0.2);
   g.add(inst);
   return g;
 }
