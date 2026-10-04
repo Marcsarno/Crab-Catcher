@@ -170,7 +170,7 @@ export class TaskSystem {
 
   /** A case is "under active care" when sedation has begun and the patient is not yet in recovery. */
   anyActive(): boolean {
-    return this.cases.some((c) => c.phase === 'active');
+    return this.cases.some((c) => c.phase === 'active' || c.phase === 'closing');
   }
 
   allDone(): boolean {

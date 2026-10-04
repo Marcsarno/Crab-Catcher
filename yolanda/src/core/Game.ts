@@ -64,6 +64,8 @@ export interface GameUI {
 const YOLANDA_SPEED = 3.1;
 const PROC_LOOK: HumanLook = { skin: '#8d5a3b', hair: '#1f1a17', hairStyle: 'cap', capColor: '#4a7fc6', top: '#4a7fc6', pants: '#3f6fb0', shoes: '#e8eef3', mask: true };
 const PACU_LOOK: HumanLook = { skin: '#e6b48f', hair: '#3a2a20', hairStyle: 'bun', top: C.green, pants: '#3fa877', shoes: '#f4f6f8', badge: true };
+const CIRC_LOOK: HumanLook = { skin: '#b07850', hair: '#2a1d16', hairStyle: 'cap', capColor: '#e08aa8', top: '#e08aa8', pants: '#c86f8f', shoes: '#f4f6f8', badge: true };
+const ASST_LOOK: HumanLook = { skin: '#f0c7a8', hair: '#4a3322', hairStyle: 'cap', capColor: '#4a7fc6', top: '#4a7fc6', pants: '#3f6fb0', shoes: '#e8eef3', mask: true };
 const TECH_LOOK: HumanLook = { skin: '#c9906a', hair: '#2a211c', hairStyle: 'short', top: '#6a93c9', pants: '#5a82b8', shoes: '#f4f6f8', badge: true };
 
 export class Game {
@@ -133,10 +135,12 @@ export class Game {
       const nurse = world.makeNpc('pacu', PACU_LOOK, back.x, back.z);
       nurse.root.rotation.y = ho.face + Math.PI;
     }
-    if (level.staff.includes('tech')) {
-      const t = world.makeNpc('tech', TECH_LOOK, env.door.x + 1.2, env.door.z + 1.4);
-      t.root.rotation.y = Math.PI;
-    }
+    // supporting staff wait near the door until delegated
+    level.staff.forEach((role, i) => {
+      const look = role === 'circulator' ? CIRC_LOOK : TECH_LOOK;
+      const n = world.makeNpc(role, look, env.door.x + 1.2 + i * 0.9, env.door.z + 1.4);
+      n.root.rotation.y = Math.PI * 0.75;
+    });
 
     this.ts.bus.on('phase', (c) => this.onPhase(c));
     this.ts.bus.on('ready', (t) => {
@@ -549,6 +553,13 @@ export class Game {
       this.ui.toast(`${c.template.proceduralist.name} is here.`, 'info');
       rig.root.rotation.y = Math.atan2(bay.center.x - spot.x, bay.center.z - spot.z);
     });
+    if (bay.def.kind === 'ortable') {
+      // surgical assistant joins on the far side
+      const a = this.world.makeNpc(`asst-${c.id}`, ASST_LOOK, env.door.x + 0.6, env.door.z);
+      const yaw = bay.rot * Math.PI / 2;
+      const spot2 = this.world.nav.nearestWalkable({ x: bay.center.x - Math.cos(yaw) * 1.25, z: bay.center.z + Math.sin(yaw) * 1.25 + 0.4 });
+      this.walk(a, spot2, 2.2, () => { a.root.rotation.y = Math.atan2(bay.center.x - spot2.x, bay.center.z - spot2.z); });
+    }
   }
 
   private procSpot(bay: StationView): Vec2 {
@@ -603,19 +614,26 @@ export class Game {
   private onPhase(c: CaseRT): void {
     const pr = this.world.patients.get(c.id)!;
     this.audio.play('phase');
+    const isOR = this.world.stations.get(c.patient.bay)?.def.kind === 'ortable';
     if (c.phase === 'active') {
       pr.state = 'asleep';
+      if (isOR) pr.drape.visible = true;
+      const asst = this.world.npcs.get(`asst-${c.id}`);
+      if (asst) asst.anim = 'interact';
       this.cam.setMode('active');
       // drop queued trips that leave the patient zone
       this.queue.items = this.queue.items.filter((a) => this.inZone(this.world.stations.get(a.stationId)!.stand));
       const proc = this.world.npcs.get(`proc-${c.id}`);
       if (proc) proc.anim = 'interact';
       if (!this.tutorialOn) this.ui.toast('Sedation started — procedure underway', 'good');
+    } else if (c.phase === 'closing') {
+      this.resolveMissedAlerts(c);
+      this.ui.toast(`${c.template.proceduralist.name}: "Closing now."`, 'info');
     } else if (c.phase === 'recovery') {
-      // resolve leftover alerts as missed
-      for (const t of this.ts.list()) {
-        if (t.caseId === c.id && t.event && t.state !== 'done') { t.by = 'missed'; this.ts.complete(t); }
-      }
+      this.resolveMissedAlerts(c);
+      pr.drape.visible = false;
+      const asst = this.world.npcs.get(`asst-${c.id}`);
+      if (asst) this.walk(asst, this.world.env.door, 2.2, () => { asst.root.visible = false; });
       if (!this.ts.anyActive()) this.cam.setMode('room');
       const proc = this.world.npcs.get(`proc-${c.id}`);
       if (proc) {
@@ -633,6 +651,12 @@ export class Game {
         this.finished = true;
         setTimeout(() => this.finish(), 1600 / this.speed);
       }
+    }
+  }
+
+  private resolveMissedAlerts(c: CaseRT): void {
+    for (const t of this.ts.list()) {
+      if (t.caseId === c.id && t.event && t.state !== 'done') { t.by = 'missed'; this.ts.complete(t); }
     }
   }
 
@@ -863,7 +887,7 @@ export class Game {
   private cond(when: string): boolean {
     const c = this.focusCase();
     const [kind, a, b] = when.split(':');
-    const order: Phase[] = ['prep', 'active', 'recovery', 'done'];
+    const order: Phase[] = ['prep', 'active', 'closing', 'recovery', 'done'];
     switch (kind) {
       case 'room': return this.mode === 'room';
       case 'task': {
@@ -962,7 +986,7 @@ export class Game {
     for (const [id, pr] of w.patients) {
       const c = this.ts.getCase(id);
       const stirring = this.ts.list().some((t) => t.caseId === id && t.event && t.state !== 'done' && t.event.def.vitals?.comfort);
-      if (c.phase === 'active') pr.state = stirring ? 'stirring' : 'asleep';
+      if (c.phase === 'active' || c.phase === 'closing') pr.state = stirring ? 'stirring' : 'asleep';
       animatePatient(pr, dt || dtReal * 0.5);
     }
     // station lights
@@ -1004,7 +1028,7 @@ export class Game {
     const alerts = this.ts.list().filter((t) => t.event && t.state !== 'done').length;
     this.audio.energy = Math.min(3, running + alerts * 2 > 3 ? 3 : running);
     const fc = this.focusCase();
-    this.audio.monitorHr = fc.phase === 'active' ? this.ts.vitals(fc).hr : 0;
+    this.audio.monitorHr = fc.phase === 'active' || fc.phase === 'closing' ? this.ts.vitals(fc).hr : 0;
     this.eventBeepT += dtReal;
   }
 

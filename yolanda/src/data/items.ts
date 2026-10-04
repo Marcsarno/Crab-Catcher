@@ -58,6 +58,18 @@ export const ITEMS: Record<string, ItemDef> = {
     id: 'scopeAirSet', name: 'ScopeAir Set (staged)', short: 'ScopeSet', kind: 'output', color: '#2f97cf',
     blurb: 'Staged breathing support set from the ScopeAir unit.',
   },
+  airwaySet: {
+    id: 'airwaySet', name: 'Airway Set (ready)', short: 'AirSet', kind: 'output', color: '#e9a52a',
+    blurb: 'Standard airway set staged by AirReady.',
+  },
+  orMonitorSet: {
+    id: 'orMonitorSet', name: 'OR Monitor Set', short: 'MonSet', kind: 'output', color: '#1f9c94',
+    blurb: 'Full monitoring set assembled by VitaDock.',
+  },
+  recoverSet: {
+    id: 'recoverSet', name: 'RecoverSet (prepared)', short: 'Recover', kind: 'output', color: '#2fae73',
+    blurb: 'Prepared fictional recovery-support set for waking up.',
+  },
   specialAirwayKit: {
     id: 'specialAirwayKit', name: 'Special Airway Kit', short: 'Spec Kit', kind: 'output', color: '#d9622a',
     blurb: 'Assembled special airway kit from AirReady.',

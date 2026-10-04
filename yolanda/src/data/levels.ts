@@ -99,4 +99,32 @@ export const LEVELS: LevelDef[] = [
     startClock: 11 * 60 + 20,
     parWalk: 72,
   },
+  {
+    id: 'L4', number: 4, title: 'Operating Room', location: 'Operating Room 3',
+    cardLines: ['Adult · Mr. Brooks, 63', 'Laparoscopic gallbladder surgery', 'General anesthesia · Surgeon: Dr. Lin'],
+    lesson: 'Bigger cases have more phases. Prepare for closing before you start.',
+    environmentId: 'or', caseTemplateId: 'generalOR',
+    patients: [{
+      id: 'A', name: 'Mr. Brooks', age: '63', bay: 'ortable', arrival: 0, proceduralistArrival: 150, modifiers: [],
+      look: { skin: '#d9a77f', hair: '#8a8a8a', gown: '#8fb8e8', hairStyle: 'short' },
+    }],
+    events: [
+      { at: 6, id: 'vitals1', name: 'Chart vitals', stationId: 'workstation', duration: 1.5, window: 14, scoreCategory: 'safety', bubble: 'Vitals due', anim: 'monitor' },
+      { at: 18, id: 'bp', name: 'Adjust support', stationId: 'workstation', duration: 2, window: 9, scoreCategory: 'safety', vitals: { hr: 10 }, bubble: 'Pressure dipping', anim: 'machine' },
+      { at: 32, id: 'spo2', name: 'Check airway', stationId: '$bay', duration: 2, window: 9, scoreCategory: 'safety', vitals: { spo2: -6 }, bubble: 'SpO₂ dipping', anim: 'interact' },
+      { at: 46, id: 'vitals2', name: 'Chart vitals', stationId: 'workstation', duration: 1.5, window: 12, scoreCategory: 'safety', bubble: 'Vitals due', anim: 'monitor' },
+    ],
+    staff: ['circulator'],
+    delegations: [
+      { id: 'recover_rescue', roleId: 'circulator', name: 'Prepare RecoverSet', eta: 38, completesTask: 'prep_recover', deliversItem: 'recoverSet', phases: ['active', 'closing'] },
+    ],
+    startClock: 13 * 60 + 10,
+    parWalk: 110,
+    tutorial: [
+      { when: 'room', text: 'The OR has more machines. <b>ThermaNest</b> is the slowest. Your tray only holds 4, so plan two supply trips.' },
+      { when: 'phase:active', text: 'Surgery started. Stay in the patient zone. Need something from outside? Use <b>Team</b>.' },
+      { when: 'phase:closing', text: 'Surgeon is closing. Begin <b>emergence</b> at the workstation with the RecoverSet.' },
+      { when: 'phase:recovery', text: 'Wake-up check, then wheel the patient to the <b>PACU</b>.' },
+    ],
+  },
 ];

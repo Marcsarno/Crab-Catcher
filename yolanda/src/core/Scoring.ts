@@ -51,7 +51,7 @@ export function scoreLevel(ts: TaskSystem, m: Metrics, parWalk: number): ScoreRe
 
   for (const c of ts.cases) {
     const g = (id: string) => ts.get(c.id, id);
-    const ws = g('workstation_check'), seda = g('load_sedaprep'), scope = g('load_scopeair');
+    const ws = g('workstation_check');
     const assess = g('assess_patient'), timeOut = g('time_out'), pacu = g('call_pacu'), doc = g('document_case');
     const wake = g('wake_check'), transport = g('transport');
     const recoveryAt = c.phaseAt.recovery ?? ts.time;
@@ -65,7 +65,10 @@ export function scoreLevel(ts: TaskSystem, m: Metrics, parWalk: number): ScoreRe
       checks.push({ cat: 'anticipation', weight: 2, score: clamp01(1 - (delay - 4) / 18),
         good: named(c, 'Started the workstation check early.'), improve: named(c, 'Start the workstation check sooner — it is the slowest step.') });
     }
-    const machineDelay = [seda, scope].filter((t) => t?.startedAt != null).map((t) => t!.startedAt! - since(t!));
+    // every prep machine (except the workstation check, scored above) should start soon after it becomes possible
+    const machines = ts.list().filter((t) => t.caseId === c.id && t.def.backgroundProcess
+      && (Array.isArray(t.def.phase) ? t.def.phase[0] : t.def.phase) === 'prep' && t.def.id !== 'workstation_check' && t.def.id !== 'prep_recover');
+    const machineDelay = machines.filter((t) => t.startedAt != null).map((t) => t.startedAt! - since(t));
     if (machineDelay.length) {
       const worst = Math.max(...machineDelay);
       checks.push({ cat: 'anticipation', weight: 1.5, score: clamp01(1 - (worst - 12) / 24),
@@ -78,6 +81,19 @@ export function scoreLevel(ts: TaskSystem, m: Metrics, parWalk: number): ScoreRe
         good: named(c, 'PACU bed was ready when the procedure ended.'), improve: named(c, 'Request the PACU bed earlier — it takes time.') });
     } else if (pacu) {
       checks.push({ cat: 'anticipation', weight: 2, score: 0, good: '', improve: named(c, 'Request the PACU bed during the procedure.') });
+    }
+    // OR: recovery support prepared by Yolanda before induction, emergence started during closing
+    const pr = g('prep_recover');
+    if (pr) {
+      const early = pr.startedAt != null && pr.by === 'yolanda' && pr.startedAt <= activeAt;
+      checks.push({ cat: 'anticipation', weight: 2.5, score: early ? 1 : pr.state === 'done' ? 0.35 : 0,
+        good: named(c, 'Prepared the RecoverSet before induction.'), improve: named(c, 'Prepare the RecoverSet before induction. You can\'t leave the patient later.') });
+    }
+    const em = g('emergence');
+    if (em?.doneAt != null) {
+      const closingEnd = c.phaseAt.recovery ?? em.doneAt;
+      checks.push({ cat: 'team', weight: 1.5, score: clamp01(1 - Math.max(0, em.doneAt - closingEnd) / 15),
+        good: named(c, 'Emergence started while the surgeon was closing.'), improve: named(c, 'Start emergence during closing so nobody waits.') });
     }
     // reveal-driven: modifier tasks started soon after reveal
     for (const t of ts.list().filter((x) => x.caseId === c.id && x.def.id === 'build_special_airway')) {

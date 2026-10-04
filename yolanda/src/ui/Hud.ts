@@ -288,7 +288,7 @@ export class Hud implements GameUI {
     if (!g) return;
     const fc = g.focusCase();
     // top bar
-    const phaseName = { prep: 'Prep Phase', active: 'Active Case', recovery: 'Recovery', done: 'Handoff done' }[fc.phase];
+    const phaseName = { prep: 'Prep Phase', active: 'Active Case', closing: 'Closing', recovery: 'Recovery', done: 'Handoff done' }[fc.phase];
     const ph = this.top.querySelector('.ph')!;
     const phTxt = g.ts.cases.length > 1 ? `${phaseName} · ${fc.patient.name}` : phaseName;
     if (ph.textContent !== phTxt) ph.textContent = phTxt;
@@ -331,7 +331,7 @@ export class Hud implements GameUI {
       && (inPhase(t) || t.state === 'running' || t.state === 'ready' || (t.event && t.state !== 'done')));
     const open = rows.filter((t) => t.state !== 'done').sort((x, y) => (y.event ? 1 : 0) - (x.event ? 1 : 0) || (x.def.optional ? 1 : 0) - (y.def.optional ? 1 : 0));
     const doneN = rows.filter((t) => t.state === 'done').length;
-    const title = { prep: 'Prep Tasks', active: 'Case Tasks', recovery: 'Recovery Tasks', done: 'Done' }[fc.phase] + (g.ts.cases.length > 1 ? ` · ${fc.patient.name}` : '');
+    const title = { prep: 'Prep Tasks', active: 'Case Tasks', closing: 'Closing Tasks', recovery: 'Recovery Tasks', done: 'Done' }[fc.phase] + (g.ts.cases.length > 1 ? ` · ${fc.patient.name}` : '');
     const timeLeft = (t: TaskRT) => {
       if (t.state === 'running') return `${Math.ceil(t.processLeft)}s`;
       if (t.state === 'ready') return 'READY';
@@ -376,14 +376,15 @@ export class Hud implements GameUI {
 
   private renderCare(c: CaseRT): void {
     const g = this.g;
-    const show = c.phase === 'active' && (g.mode === 'room' || g.mode === 'paused');
+    const show = (c.phase === 'active' || c.phase === 'closing') && (g.mode === 'room' || g.mode === 'paused');
     this.careEl.classList.toggle('hidden', !show);
     if (!show) return;
     const v = g.ts.vitals(c);
-    const proc = g.ts.get(c.id, 'procedure');
+    const closing = c.phase === 'closing';
+    const proc = g.ts.get(c.id, closing ? 'closing_proc' : 'procedure');
     const pct = proc && proc.def.process ? (1 - proc.processLeft / proc.def.process) * 100 : 0;
     this.careEl.innerHTML = `<div class="vit"><div class="hr">${v.hr}<small>HR</small></div><div class="sp ${v.spo2 < 94 ? 'low' : ''}">${v.spo2}<small>SpO₂</small></div><div class="bp">${v.bp}<small>BP</small></div></div>
-      <div class="prog"><span>${c.template.procedure.toUpperCase()} · ${Math.round(pct)}%</span><div class="track"><div class="fill" style="width:${pct}%"></div></div></div>`;
+      <div class="prog"><span>${closing ? 'CLOSING' : c.template.procedure.toUpperCase()} · ${Math.round(pct)}%</span><div class="track"><div class="fill" style="width:${pct}%"></div></div></div>`;
   }
 
   private renderSide(c: CaseRT): void {

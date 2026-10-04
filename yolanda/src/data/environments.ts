@@ -49,7 +49,34 @@ const endoDecor: EnvironmentDef['decor'] = [
   { kind: 'plant', ...uv(4.7, 5.6), scale: 1.3 },
 ];
 
+// Operating room: bigger, prep machines up top, the surgical field below.
+const orStations: StationPlacement[] = [
+  P('thermanest', -0.3, -6.4, 0),
+  P('handoff', -3.0, -4.7, 1),
+  P('sedaprep', 2.6, -4.5, 0),
+  P('vitadock', -2.9, -1.5, 1),
+  P('supplies', 2.8, -1.1, 0),
+  P('ortable', -0.2, 2.4, 0, { x: 1.3, z: 0.1 }),
+  P('workstation', -3.1, 1.6, 1),
+  P('airready', 3.0, 2.1, 0),
+  P('orchart', -2.6, 5.1, 1),
+];
+
 export const ENVIRONMENTS: Record<string, EnvironmentDef> = {
+  or: {
+    id: 'or', name: 'Operating Room 3', sign: 'OR 3', width: 15, depth: 17, floor: 'or',
+    camYaw: CAM_YAW, camPitch: CAM_PITCH,
+    start: uv(0.2, -1.0), door: { x: -6.0, z: -8.0 },
+    stations: orStations,
+    patientZone: { x0: -5.6, z0: -0.6, x1: 4.6, z1: 7.2 },
+    decor: [
+      { kind: 'door', x: -6.0, z: -8.5 },
+      { kind: 'sign', x: -2.4, z: -8.5 },
+      { kind: 'poster', x: -7.5, z: -3.0, rot: 1 },
+      { kind: 'plant', ...uv(4.4, -3.4), scale: 1.2 },
+      { kind: 'plant', ...uv(-4.6, -6.0), scale: 1.1 },
+    ],
+  },
   endo: {
     ...base, id: 'endo', stations: endoStations,
     patientZone: { x0: -3.4, z0: 0.0, x1: 5.6, z1: 6.6 },

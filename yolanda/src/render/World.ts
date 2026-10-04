@@ -6,7 +6,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { C, at, canvasTex, mat, plane, rbox, textPlane } from './palette';
 import {
   makeAirReady, makeBed, makeBench, makeChartDesk, makeHandoff, makePlant, makeScopeAir, makeSedaPrep,
-  makeSink, makeSupplies, makeWorkstation, type StationModel,
+  makeSink, makeSupplies, makeWorkstation, makeORTable, makeThermaNest, makeVitaDock, makeORChart, type StationModel,
 } from './models/equipment';
 import { makeHuman, makeLyingPatient, YOLANDA_LOOK, type HumanLook, type PatientRig, type Rig } from './models/characters';
 
@@ -139,7 +139,12 @@ export class World {
       root.add(model);
       const odd = rot % 2 === 1;
       const fw = odd ? def.d : def.w, fd = odd ? def.w : def.d;
-      if (def.kind === 'bay' || def.kind === 'preop') {
+      if (def.kind === 'ortable') {
+        this.blockLocal(place, 0, 0, 1.3, 2.9, [this.nav]);
+        this.blockLocal(place, 1.33 + 0.57, -1.05, 0.7, 0.7, [this.nav, this.navWide]); // light boom base
+        this.blockLocal(place, 1.33, 1.55, 1.1, 0.7, [this.nav, this.navWide]); // instrument table
+        this.blob(root, place.x, place.z, 2.0, 3.4, yaw, 0.9);
+      } else if (def.kind === 'bay' || def.kind === 'preop') {
         // the bed itself (the wide grid ignores beds: they move during transport)
         this.blockLocal(place, 0, 0, 1.25, 2.6, [this.nav]);
         if (def.kind === 'bay') {
@@ -170,11 +175,11 @@ export class World {
       marker.position.set(stand.x, 0.02, stand.z);
       root.add(marker);
       // name tag: just in front of the station, low down (like the concept art)
-      const isBed = def.kind === 'bay' || def.kind === 'preop';
+      const isBed = def.kind === 'bay' || def.kind === 'preop' || def.kind === 'ortable';
       const lp = isBed
         ? new THREE.Vector3(place.x - 0.2, 0.55, place.z + 1.55)
         : new THREE.Vector3(place.x + front.x * (def.d / 2 + 0.05), 0.5, place.z + front.z * (def.d / 2 + 0.05));
-      const topY = def.kind === 'workstation' ? 2.75 : isBed ? 2.2 : def.kind === 'sedaprep' ? 2.5 : def.kind === 'scopeair' ? 2.2 : def.kind === 'handoff' ? 3.2 : 1.9;
+      const topY = def.kind === 'workstation' ? 2.75 : def.kind === 'ortable' ? 3.3 : isBed ? 2.2 : def.kind === 'sedaprep' ? 2.5 : def.kind === 'scopeair' ? 2.2 : def.kind === 'handoff' ? 3.2 : def.kind === 'thermanest' ? 2.1 : 1.9;
       this.stations.set(place.id, { def, place, model, center: new THREE.Vector3(place.x, 0, place.z), stand, face, hit, marker, markerMat, labelPos: lp, topY, rot });
     }
 
@@ -270,6 +275,10 @@ export class World {
       case 'preop': return makeBed(false);
       case 'handoff': return makeHandoff();
       case 'airready': return makeAirReady();
+      case 'ortable': return makeORTable();
+      case 'thermanest': return makeThermaNest();
+      case 'vitadock': return makeVitaDock();
+      case 'orchart': return makeORChart();
       default: return makeChartDesk();
     }
   }

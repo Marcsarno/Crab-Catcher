@@ -357,6 +357,121 @@ export function makeAirReady(): StationModel {
   return g;
 }
 
+/** OR table with pedestal; surgical light boom stands at the head (not part of the movable table). */
+export function makeORTable(): StationModel {
+  const g = new THREE.Group() as StationModel;
+  const bed = new THREE.Group();
+  const L = 2.7, W = 1.15;
+  bed.add(at(rbox(0.9, 0.12, 1.4, C.midGray, 0.05), 0, 0.06, 0));
+  bed.add(at(rbox(0.5, 0.62, 0.7, C.lightGray, 0.1), 0, 0.4, 0));
+  bed.add(at(rbox(W, 0.14, L, C.darkGray, 0.06), 0, 0.78, 0));
+  bed.add(at(rbox(W - 0.06, 0.12, L - 0.1, C.navyLight, 0.06), 0, 0.9, 0));
+  bed.add(at(rbox(0.6, 0.12, 0.36, C.navyLight, 0.06), 0, 0.92, -L / 2 - 0.1));
+  for (const sx of [-1, 1]) {
+    const arm = at(rbox(0.75, 0.08, 0.24, C.navyLight, 0.04), sx * (W / 2 + 0.3), 0.88, -0.35);
+    bed.add(arm);
+  }
+  const mount = new THREE.Group();
+  mount.position.set(0, 0.96, 0.05);
+  mount.rotation.y = Math.PI / 2;
+  bed.add(mount);
+  g.add(bed);
+  g.userData.bed = bed;
+  g.userData.patientMount = mount;
+  // surgical light boom (two round heads on arms)
+  const boom = new THREE.Group();
+  boom.add(at(cyl(0.32, 0.36, 0.08, C.darkGray, 16), 0, 0.04, 0));
+  boom.add(at(cyl(0.07, 0.07, 3.2, C.lightGray, 10), 0, 1.6, 0));
+  const lightMat = mat('#fff6d8', { emissive: '#fff1c4', emissiveIntensity: 0.9 });
+  for (const [dx, dz, y] of [[-1.15, 0.4, 2.85], [-1.0, -0.6, 2.55]] as const) {
+    const arm = rbox(Math.hypot(dx, dz), 0.1, 0.12, C.lightGray, 0.04);
+    arm.position.set(dx / 2, y + 0.2, dz / 2);
+    arm.rotation.y = -Math.atan2(dz, dx);
+    boom.add(arm);
+    const head = new THREE.Group();
+    head.add(cyl(0.48, 0.42, 0.18, C.white, 22));
+    const rim = torus(0.46, 0.05, C.blue);
+    rim.rotation.x = Math.PI / 2;
+    rim.position.y = -0.06;
+    head.add(rim);
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.08, 10, 8), lightMat);
+      bulb.position.set(Math.cos(a) * 0.24, -0.1, Math.sin(a) * 0.24);
+      head.add(bulb);
+    }
+    head.position.set(dx, y, dz);
+    head.rotation.z = 0.25;
+    boom.add(head);
+  }
+  boom.position.set(W / 2 + 1.3, 0, -L / 2 + 0.3);
+  g.add(boom);
+  // instrument table at the foot (like the concept art)
+  const inst = new THREE.Group();
+  inst.add(at(rbox(1.0, 0.06, 0.6, C.lightGray, 0.03), 0, 0.85, 0));
+  inst.add(at(rbox(1.08, 0.36, 0.66, '#2fae9d', 0.05), 0, 0.72, 0));
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) inst.add(at(cyl(0.025, 0.025, 0.8, C.midGray, 8), sx * 0.42, 0.4, sz * 0.24));
+  inst.add(at(cyl(0.12, 0.09, 0.08, C.lightGray, 14), -0.25, 0.94, 0));
+  inst.add(at(rbox(0.3, 0.05, 0.08, C.midGray, 0.02), 0.2, 0.92, -0.1));
+  inst.add(at(rbox(0.3, 0.05, 0.08, C.midGray, 0.02), 0.2, 0.92, 0.08));
+  inst.position.set(W / 2 + 0.75, 0, L / 2 + 0.2);
+  g.add(inst);
+  return g;
+}
+
+export function makeThermaNest(): StationModel {
+  const g = new THREE.Group() as StationModel;
+  g.add(at(rbox(1.5, 1.7, 1.0, C.white, R), 0, 0.88, 0));
+  casters(g, 1.5, 1.0, 0.05);
+  // glass door with warm glowing blankets inside
+  g.add(at(rbox(1.2, 1.2, 0.06, '#d9ecf7', 0.06), 0, 0.98, 0.5));
+  const warm = mat('#ffb36b', { emissive: '#ff9a3d', emissiveIntensity: 0.55 });
+  for (let i = 0; i < 4; i++) {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.18, 0.5), warm);
+    b.position.set(0, 0.55 + i * 0.27, 0.22);
+    g.add(b);
+  }
+  g.add(at(rbox(1.24, 0.06, 0.08, C.blue, 0.02), 0, 1.6, 0.52));
+  g.add(at(textPlane('ThermaNest', 1.2, 0.22, '#b4521c', null, 'bold 100px system-ui, sans-serif'), 0, 1.77, 0.505));
+  g.userData.status = statusLight(g, 0.55, 1.9, 0.1);
+  return g;
+}
+
+export function makeVitaDock(): StationModel {
+  const g = new THREE.Group() as StationModel;
+  g.add(at(rbox(1.6, 0.85, 1.0, C.white, R), 0, 0.47, 0));
+  drawers(g, 1.4, 0.6, 0.51, 2, 0.1, C.teal);
+  g.add(at(rbox(1.66, 0.07, 1.06, C.lightGray, 0.03), 0, 0.92, 0));
+  // three charging docks with leads
+  for (let i = 0; i < 3; i++) {
+    g.add(at(rbox(0.36, 0.22, 0.4, C.navy, 0.06), -0.5 + i * 0.5, 1.07, -0.12));
+    g.add(at(rbox(0.26, 0.08, 0.3, [C.red, C.yellow, C.tealLight][i], 0.03), -0.5 + i * 0.5, 1.22, -0.12));
+    const coil = torus(0.12, 0.03, C.lightGray);
+    coil.rotation.x = Math.PI / 2;
+    coil.position.set(-0.5 + i * 0.5, 0.98, 0.3);
+    g.add(coil);
+  }
+  const mon = group(at(rbox(0.7, 0.48, 0.08, C.navy, 0.06), 0, 0, 0), at(screenMesh(0.6, 0.38, 'wave', '#66e3a0'), 0, 0, 0.045));
+  mon.position.set(0, 1.7, -0.35);
+  g.add(mon, at(rbox(0.1, 0.4, 0.08, C.midGray, 0.03), 0, 1.35, -0.4));
+  g.userData.status = statusLight(g, 0.65, 1.55, -0.3);
+  return g;
+}
+
+export function makeORChart(): StationModel {
+  const g = new THREE.Group() as StationModel;
+  g.add(at(rbox(1.3, 0.85, 0.9, C.white, R), 0, 0.5, 0));
+  drawers(g, 1.1, 0.62, 0.46, 2, 0.14, C.blue);
+  casters(g, 1.3, 0.9, 0.05);
+  g.add(at(rbox(1.36, 0.06, 0.96, C.lightGray, 0.03), 0, 0.96, 0));
+  const mon = group(at(rbox(0.9, 0.62, 0.08, C.navy, 0.06), 0, 0, 0), at(screenMesh(0.78, 0.5, 'chart'), 0, 0, 0.045), at(rbox(0.12, 0.3, 0.08, C.midGray, 0.03), 0, -0.42, -0.04));
+  mon.position.set(-0.1, 1.42, -0.15);
+  g.add(mon);
+  g.add(at(cyl(0.09, 0.08, 0.2, C.midGray, 12), 0.5, 1.09, 0.15));
+  g.add(at(cyl(0.012, 0.012, 0.22, C.red, 6), 0.48, 1.22, 0.15), at(cyl(0.012, 0.012, 0.24, C.yellow, 6), 0.52, 1.23, 0.13), at(cyl(0.012, 0.012, 0.2, C.blueDeep, 6), 0.5, 1.21, 0.18));
+  return g;
+}
+
 // ------------------------------------------------------------------ decor
 
 export function makePlant(scale = 1): THREE.Group {

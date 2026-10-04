@@ -378,6 +378,8 @@ export interface PatientRig {
   brows: THREE.Object3D[];
   blanket: THREE.Mesh;
   warmBlanket: THREE.Mesh;
+  /** Surgical drape (OR cases, during surgery). */
+  drape: THREE.Mesh;
   state: 'awake' | 'anxious' | 'asleep' | 'stirring' | 'happy';
   t: number;
   monitored: THREE.Group;
@@ -397,6 +399,10 @@ export function makeLyingPatient(look: { skin: string; hair: string; gown: strin
   warmBlanket.position.set(-0.25, 0.3, 0);
   warmBlanket.visible = false;
   root.add(warmBlanket);
+  const drape = rbox(1.6, 0.22, 1.25, '#2fae9d', 0.08);
+  drape.position.set(-0.25, 0.32, 0);
+  drape.visible = false;
+  root.add(drape);
   for (const s of [-1, 1]) {
     const arm = capsule(0.07, 0.5, look.skin);
     arm.rotation.z = Math.PI / 2;
@@ -453,7 +459,7 @@ export function makeLyingPatient(look: { skin: string; hair: string; gown: strin
   root.add(monitored);
 
   root.traverse((o) => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).castShadow = true; });
-  return { root, head, eyes, mouth, brows, blanket, warmBlanket, state: 'awake', t: 0, monitored };
+  return { root, head, eyes, mouth, brows, blanket, warmBlanket, drape, state: 'awake', t: 0, monitored };
 }
 
 export function animatePatient(p: PatientRig, dt: number): void {

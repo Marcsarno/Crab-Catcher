@@ -12,7 +12,6 @@ const h = (tag: string, cls = '', html = ''): HTMLElement => {
 };
 
 const UPCOMING = [
-  { n: 4, t: 'Operating Room', s: 'General anesthesia · bigger room' },
   { n: 5, t: 'Parallel Processes', s: 'ThermaNest, transport, deliveries' },
   { n: 6, t: 'Ortho + Ultrasound', s: 'Shared equipment' },
   { n: 7, t: 'Pediatric Case', s: 'Comfort & caregiver' },

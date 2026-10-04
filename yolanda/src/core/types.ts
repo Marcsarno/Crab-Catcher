@@ -1,6 +1,9 @@
 // Shared type definitions. Content lives in src/data; these are the shapes.
 
-export type Phase = 'prep' | 'active' | 'recovery' | 'done';
+export type Phase = 'prep' | 'active' | 'closing' | 'recovery' | 'done';
+
+/** Phases in which the patient is under active anesthesia care (Yolanda stays in the zone). */
+export const CARE_PHASES: Phase[] = ['active', 'closing'];
 export type ScoreCat = 'safety' | 'anticipation' | 'efficiency' | 'care' | 'team';
 
 export type ItemId = string;
@@ -32,7 +35,7 @@ export interface DrawerDef {
 /** Visual + interaction archetype for a station. Placement comes from environments. */
 export type StationKind =
   | 'chart' | 'sedaprep' | 'scopeair' | 'supplies' | 'workstation' | 'bay'
-  | 'handoff' | 'airready' | 'vitadock' | 'thermanest' | 'ortable' | 'preop';
+  | 'handoff' | 'airready' | 'vitadock' | 'thermanest' | 'ortable' | 'preop' | 'orchart';
 
 export interface StationDef {
   id: string;
