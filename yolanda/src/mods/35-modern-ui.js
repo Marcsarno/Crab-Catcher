@@ -35,6 +35,8 @@
     check: '<path d="M5 12.6l4.4 4.4L19 7.4"/>',
     heart: '<path d="M12 20s-7.4-4.4-7.4-10.2A4.3 4.3 0 0 1 12 7.2a4.3 4.3 0 0 1 7.4 2.6C19.4 15.6 12 20 12 20z"/>',
     skip: '<path d="M6 6.6l8 5.4-8 5.4zM17.6 6.4v11.2"/>',
+    sound: '<path d="M4 9.6v4.8h3.4L12 18.4V5.6L7.4 9.6zM15.6 8.8a4.6 4.6 0 0 1 0 6.4M18 6.4a8 8 0 0 1 0 11.2"/>',
+    mute: '<path d="M4 9.6v4.8h3.4L12 18.4V5.6L7.4 9.6zM16 9.6l4.4 4.8M20.4 9.6L16 14.4"/>',
   };
   const ic = (n, cls = "") =>
     `<svg class="cx-ic ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n] ?? ""}</svg>`;
@@ -147,7 +149,7 @@
     :root{--cx-top:max(6px,env(safe-area-inset-top));--cx-bot:max(8px,env(safe-area-inset-bottom))}
     /* one slim HUD row */
     #cx-hud{top:var(--cx-top);left:6px;right:6px;max-width:none;display:flex!important;gap:4px;padding:4px;border-radius:16px}
-    #cx-hud .cx-brand,#cx-hud .cx-pts,#cx-hud small,#cx-hud .cx-dayprog{display:none}
+    #cx-hud .cx-brand,#cx-hud .cx-pts,#cx-hud small,#cx-hud .cx-dayprog,#cx-hud .cx-snd{display:none}
     #cx-hud .cx-chip{flex:1 1 auto;justify-content:center;padding:0 7px;gap:5px;height:38px;border-radius:12px}
     #cx-hud .cx-chip b{font-size:13.5px}
     #cx-hud .cx-cash{flex:1.5 0 auto;min-width:max-content}.cx-cash b{font-size:15px!important}
@@ -366,6 +368,7 @@
         <div class="cx-chip cx-mood good" title="Patient mood"><span data-f="face">${ic("happy")}</span><div><b data-f="mood">0%</b><small>Mood</small></div></div>
         <div class="cx-chip cx-pts" title="Patients in the center">${ic("people")}<div><b data-f="pts">0</b><small>Patients</small></div></div>
         <div class="cx-chip cx-day" title="Day and clock">${ic("clock")}<div><b data-f="day">Day 1</b><small data-f="clock">0:00</small></div><div class="cx-dayprog"><i data-f="dayprog"></i></div></div>
+        <button class="cx-gear cx-snd" data-act="sound" aria-label="Sound on or off" data-f="snd">${ic("sound")}</button>
         <button class="cx-gear" data-act="settings" aria-label="Settings and saves">${ic("gear")}</button>
       </div>
       <button id="cx-goal" data-act="tab:goals" aria-label="Open goals"><div class="stars" data-f="stars"></div><div class="txt"><small data-f="goalhead">Goals</small><b data-f="goaltext"></b><div class="seg" data-f="seg"></div></div>${ic("chevron")}</button>
@@ -382,7 +385,7 @@
         <button class="d-only" data-act="tab:overview" data-tab="overview" aria-label="Hospital overview">${ic("hospital")}<span>Hospital</span></button>
         <button class="m-only" data-act="more" aria-label="More">${ic("more")}<span>More</span></button>
       </nav>
-      <div id="cx-sheet" role="menu">${MORE.map(([k, i, l]) => `<button data-act="${k === "settings" ? "settings" : "tab:" + k}" data-tab="${k}">${ic(i)}<span>${l}</span></button>`).join("")}</div>`;
+      <div id="cx-sheet" role="menu">${MORE.map(([k, i, l]) => `<button data-act="${k === "settings" ? "settings" : "tab:" + k}" data-tab="${k}">${ic(i)}<span>${l}</span></button>`).join("")}<button data-act="sound" data-f="snd2">${ic("sound")}<span>Sound</span></button></div>`;
     while (wrap.firstChild) ctrl.ui.append(wrap.firstChild);
     const $ = (s) => ctrl.ui.querySelector(s);
     ctrl.cxEls = { hud: $("#cx-hud"), goal: $("#cx-goal"), alert: $("#cx-alert"), dock: $("#cx-dock"), sheet: $("#cx-sheet") };
@@ -400,6 +403,7 @@
       else if (act === "build") ctrl.ui.querySelector("#center-build").click();
       else if (act === "alert") ctrl.ui.querySelector("#flow-goal").click();
       else if (act === "settings") ctrl.navigate("settings");
+      else if (act === "sound") YC.toggleSound?.();
       else if (act === "more") sheet.classList.toggle("on");
       else if (act.startsWith("tab:")) openTab(ctrl, act.slice(4));
     });
@@ -477,10 +481,16 @@
     const goals = sim.careerGoals();
     const done = goals.filter((g) => g.done).length;
     const next = goals.find((g) => !g.done);
+    const step = YC.nextStep?.(sim);
+    const snd = YC.sound?.sfx || YC.sound?.music;
+    for (const id of ["snd", "snd2"]) {
+      const b = ctrl.ui.querySelector(`[data-f=${id}]`);
+      if (b) setHTML(b, ic(snd ? "sound" : "mute") + (id === "snd2" ? `<span>${snd ? "Sound on" : "Sound off"}</span>` : ""));
+    }
     setHTML(q("stars"), [1, 2, 3].map((i) => ic("star", i <= c.stars ? "fill on" : "")).join(""));
     const maxed = c.stars >= YC.MAX_STARS;
-    setText(q("goalhead"), maxed ? "Center of Excellence" : `Star ${c.stars + 1} goals · ${done}/${goals.length}`);
-    setText(q("goaltext"), maxed ? "Keep growing: there is no ceiling" : next ? next.label : "All goals complete");
+    setText(q("goalhead"), step ? "Next step" : maxed ? "Center of Excellence" : `Star ${c.stars + 1} goals · ${done}/${goals.length}`);
+    setText(q("goaltext"), step ?? (maxed ? "Keep growing: there is no ceiling" : next ? next.label : "All goals complete"));
     setHTML(q("seg"), goals.map((g) => `<i class="${g.done ? "on" : ""}"></i>`).join(""));
 
     // bottleneck alert

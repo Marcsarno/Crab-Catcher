@@ -50390,10 +50390,12 @@ void main() {
                 let n = this.sim.state.lastDischarge;
                 n &&
                   this.adapter.message(
-                    n.name +
-                      " is heading home \xB7 +" +
-                      kt(n.amount) +
-                      " earned. Thank you for taking care of me!",
+                    this.sim.careerOn?.() && window.YC?.dischargeLine
+                      ? window.YC.dischargeLine(n)
+                      : n.name +
+                          " is heading home \xB7 +" +
+                          kt(n.amount) +
+                          " earned. Thank you for taking care of me!",
                   );
               }
               return (

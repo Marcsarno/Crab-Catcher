@@ -64,7 +64,7 @@
       }
       c.active = !!legacyFinished && (t.completed > 0 || t.star > 0 || (g && g.skipped));
       if (c.active) c.stars = Math.min(t.star || 0, 2);
-      c.nextEvent = t.time + DAY * 1.2;
+      c.nextEvent = t.time + DAY * 0.9;
     }
     const c = t.career;
     c.perks ||= {};
@@ -96,7 +96,7 @@
     c.marks = { income: t.income, wages: this.totalWages(), operating: t.operating, capital: t.capital };
     c.today = blankToday(c, t);
     c.dayStart = t.time;
-    c.nextEvent = t.time + DAY * 2.5;
+    c.nextEvent = t.time + DAY * 0.9;
     if (opts.rep !== void 0) c.rep = opts.rep;
     this.careerNotice("Career mode: demand now follows your reputation. Keep patients happy and the books balanced.", "info");
     this.refreshMarket(true);
@@ -284,16 +284,18 @@
   proto.careerGap = function () {
     const t = this.state;
     const c = t.career;
-    let gap = 110 * (1.2 - (c.rep / 100) * 0.8);
+    let gap = YC.ARRIVAL_BASE * (1.2 - (c.rep / 100) * 0.8);
     gap *= 0.8 + 0.25 * this.avgPriceFactor();
     if (c.surge && t.time < c.surge.until) gap *= 0.6;
     if (c.pressUntil && t.time < c.pressUntil) gap *= 0.8;
     gap *= 0.8 + this.crand() * 0.4;
-    return Math.max(12, gap);
+    // opening rush: the first couple of minutes are busy so there is always something to react to
+    if (t.time < YC.RUSH_UNTIL) gap = Math.min(gap, 14 + this.crand() * 10);
+    return Math.max(10, gap);
   };
   proto.demandPerDay = function () {
     const c = this.state.career;
-    return DAY / (110 * (1.2 - (c.rep / 100) * 0.8) * (0.8 + 0.25 * this.avgPriceFactor()));
+    return DAY / (YC.ARRIVAL_BASE * (1.2 - (c.rep / 100) * 0.8) * (0.8 + 0.25 * this.avgPriceFactor()));
   };
   proto.careerCanSpawn = function () {
     const t = this.state;
@@ -414,7 +416,8 @@
   const baseCaseDuration = proto.caseDuration;
   proto.caseDuration = function (p, stage) {
     let d = baseCaseDuration.call(this, p, stage);
-    if (this.careerOn() && stage === "recovery") d *= (p.complication ? 1.5 : 1) * 0.65;
+    if (this.careerOn()) d *= YC.PACE; // everything in the care journey runs faster than the original build
+    if (this.careerOn() && stage === "recovery") d *= (p.complication ? 1.5 : 1) * 0.8;
     if (this.careerOn() && stage === "procedure") d *= this.upgradeSpeedFactor?.(p) ?? 1;
     return d;
   };
@@ -824,6 +827,9 @@
   };
 
   // ---- starting a career game -------------------------------------------------------------------------
+  YC.ARRIVAL_BASE = 55; // seconds between bookings at 0% rep scale (was 110)
+  YC.RUSH_UNTIL = 150; // opening rush window in sim seconds
+  YC.PACE = 0.6; // care-journey duration multiplier (assessment, prep, procedure, recovery)
   YC.LAYOUT_VERSION = 2; // 1 = original four-bay plan, 2 = starter lobby / concourse plan
   YC.careerStart = function () {
     const base = YC.careerLayout();
@@ -834,6 +840,11 @@
     rec && sim.hire("pacuNurse", rec.id);
     for (const s of sim.state.staff) s.anchor && ((s.cell = { ...s.anchor }), (s.x = s.anchor.x), (s.y = s.anchor.y), (s.route = []));
     sim.activateCareer({ rep: 25 });
+    sim.state.nextArrival = 3; // first patient walks in right away
+    if (!YC.fastWalk) {
+      YC.fastWalk = true;
+      for (const k of ["normal", "brisk", "tired"]) Xa[k] *= 1.45;
+    }
     sim.state.career.layout = YC.LAYOUT_VERSION;
     sim.state.funds = 4500;
     sim.state.events = ["Career start: a furnished, staffed center ready to open. Press Open center."];
