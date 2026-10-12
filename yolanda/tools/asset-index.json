@@ -1,4 +1,5 @@
-[["/art/people/patient-05.png","image/png"],
+[
+["/art/people/patient-05.png","image/png"],
 ["/art/people/patient-06.png","image/png"],
 ["/art/people/patient-bob.png","image/png"],
 ["/art/people/patient-fullhair.png","image/png"],
@@ -381,4 +382,14 @@
 ["/models/utility/Utility_Wet_Floor_Sign.glb","model/gltf-binary"],
 ["/models/wheelchair/Hospital_Wheelchair.glb","model/gltf-binary"],
 ["/ATTRIBUTIONS.md","text/plain"],
-["/THREE-LICENSE.txt","text/plain"]]
+["/THREE-LICENSE.txt","text/plain"],
+["/models/decor2/Clinical_Art_Airway.glb","model/gltf-binary"],
+["/models/decor2/Clinical_Art_Heart.glb","model/gltf-binary"],
+["/models/decor2/Clinical_Art_Lungs.glb","model/gltf-binary"],
+["/models/decor2/Clinical_Service_Headwall.glb","model/gltf-binary"],
+["/models/decor2/Clinical_Sign_Assessment.glb","model/gltf-binary"],
+["/models/decor2/Clinical_Sign_Bay01.glb","model/gltf-binary"],
+["/models/decor2/Clinical_Sign_Recovery.glb","model/gltf-binary"],
+["/models/decor2/Clinical_Wall_Exam_Set.glb","model/gltf-binary"],
+["/models/decor2/README.txt","text/plain"]
+]

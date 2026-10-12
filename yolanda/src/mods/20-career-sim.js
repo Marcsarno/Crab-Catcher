@@ -366,6 +366,7 @@
     if (!this.careerOn()) return Math.max(20, Math.min(100, 100 - p.wait / 8 + (p.comfort?.relief ?? 0)));
     const c = this.state.career;
     let m = 100 - 85 * (p.wait / this.patienceOf(p)) + (p.comfort?.relief ?? 0) + (c.perks.comfort ? 6 : 0);
+    if (Ri[p.stage]) m += this.lobbyComfort?.() ?? 0;
     if ((p.comfort?.toiletNeed ?? 0) >= Zi.needAt) m -= 10;
     if ((p.comfort?.boredom ?? 0) > 60) m -= 5;
     if (p.complication) m -= 15;
@@ -824,7 +825,7 @@
 
   // ---- starting a career game -------------------------------------------------------------------------
   YC.careerStart = function () {
-    const base = Ll();
+    const base = YC.careerLayout();
     const plain = ya();
     const sim = jr(base, Gi(ni(base.config), base) - Gi(ni(plain.config), plain));
     sim.state.guide = void 0;

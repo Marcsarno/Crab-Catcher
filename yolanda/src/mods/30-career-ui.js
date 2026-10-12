@@ -71,46 +71,79 @@
     roleRooms(sim, role)
       .map((r) => `<option value="${r.id}" ${r.id === pick ? "selected" : ""}>${esc(sim.roomName(r.id))}</option>`)
       .join("");
+  const ROLE_HUE = { crna: "#1f8a82", nurse: "#3b82c4", receptionist: "#c47a3b", janitor: "#7a8a3b", pacu: "#8a5cc4", physician: "#c4503b", surgeon: "#c4503b" };
+  const ava = (name, role) => `<div class="cx-ava" style="background:${ROLE_HUE[role] ?? "#5b746e"}">${esc(name.split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase())}</div>`;
+  const pips = (n) => `<span class="cx-pips" title="Skill ${n}/5">${[1, 2, 3, 4, 5].map((i) => `<i class="${i <= n ? "on" : ""}"></i>`).join("")}</span>`;
   const trait = (k) => (k ? `<span class="cx-pill" title="${esc(YC.TRAITS[k].desc)}">${esc(YC.TRAITS[k].name)}</span>` : "");
 
   // ---- tab bodies ------------------------------------------------------------------------------------
   const tabs = {
     overview(ctrl) {
-      const sim = ctrl.sim, t = sim.state, c = t.career, sum = sim.summary();
+      const sim = ctrl.sim, t = sim.state, c = t.career;
+      const ic = YC.ic ?? (() => "");
       const notes = c.notices.slice(0, 3).map((n) => `<div class="cx-note ${n.kind}">${esc(n.text)}</div>`).join("");
       const surge = c.surge && t.time < c.surge.until ? `<span class="cx-pill warn">Surge: ${esc(Ci[c.surge.caseId].name)}</span>` : "";
       const fl = sim.flowConstraint();
+      const rep = Math.max(0, Math.min(100, c.rep));
+      const cap = sim.careerCap();
+      const mood = Math.round(c.happy);
+      const dept = (m) => {
+        const util = m.capacity ? Math.min(100, (m.active.length / m.capacity) * 100) : 0;
+        const kind = m.reason ? "bad" : m.queue > 1 ? "busy" : m.active.length ? "" : "idle";
+        return `<button class="cx-dept" data-room="${m.id}"><div class="h"><span class="dot ${kind}"></span>${esc(sim.roomName(m.id))}</div>
+          <div class="bar"><i style="width:${util}%"></i></div>
+          <small>${m.active.length}/${m.capacity} in use${m.queue ? " · " + m.queue + " queued" : ""}${m.reason ? "<br>" + esc(m.reason) : ""}</small></button>`;
+      };
       return `
-      <div class="cx-kpis">
-        <div class="cx-kpi"><small>Reputation</small><b>${pct(c.rep)}</b><div class="cx-bar"><i style="width:${c.rep}%"></i></div></div>
-        <div class="cx-kpi"><small>Patient mood</small><b>${pct(c.happy)}</b><div class="cx-bar ${c.happy < 55 ? "bad" : ""}"><i style="width:${c.happy}%"></i></div></div>
-        <div class="cx-kpi"><small>Cash</small><b>${kt(t.funds)}</b></div>
-        <div class="cx-kpi"><small>Loan</small><b>${kt(t.debt)}</b></div>
-        <div class="cx-kpi"><small>Treated</small><b>${c.cured}</b></div>
-        <div class="cx-kpi"><small>Walkouts</small><b>${c.walkouts}</b></div>
+      <div class="cx-hero">
+        <div class="cx-bigring"><svg viewBox="0 0 92 92"><circle class="t" cx="46" cy="46" r="38"/><circle class="v" cx="46" cy="46" r="38" stroke-dasharray="${(rep / 100) * 238.76} 238.76"/></svg><div><b>${pct(rep)}</b><small>Reputation</small></div></div>
+        <div class="side">
+          <div class="cx-meter ${mood < 55 ? "bad" : ""}">${ic(mood >= 72 ? "happy" : mood >= 50 ? "meh" : "sad")}<div class="bar"><i style="width:${mood}%"></i></div><b>${mood}%</b></div>
+          <div class="cx-meter">${ic("people")}<div class="bar"><i style="width:${Math.min(100, (t.patients.length / Math.max(1, cap)) * 100)}%"></i></div><b>${t.patients.length}/${cap}</b></div>
+          <div class="cx-meter">${ic("star", "fill")}<div class="bar"><i style="width:${(c.stars / YC.MAX_STARS) * 100}%"></i></div><b>${esc(YC.STAR_TITLE[c.stars])}</b></div>
+        </div>
       </div>
-      <p><span class="cx-pill">Day ${c.day}</span><span class="cx-pill">${stars(c.stars)} ${esc(YC.STAR_TITLE[c.stars])}</span>${surge}<span class="cx-pill">${t.patients.length}/${sim.careerCap()} patients</span></p>
+      <div class="cx-tiles">
+        <div class="cx-tile">${ic("check")}<b>${c.cured}</b><small>Treated</small></div>
+        <div class="cx-tile">${ic("sad")}<b>${c.walkouts}</b><small>Walkouts</small></div>
+        <div class="cx-tile">${ic("coin")}<b>${kt(t.funds)}</b><small>Cash</small></div>
+        <div class="cx-tile">${ic("finance")}<b>${kt(t.debt)}</b><small>Loan</small></div>
+      </div>
+      <p><span class="cx-pill">Day ${c.day}</span>${surge}</p>
       ${fl ? `<div class="cx-note bad"><b>${esc(fl.department)}</b> · ${fl.waiting} waiting. ${esc(fl.reason)}</div>${fl.roomId ? `<button data-room="${fl.roomId}">Inspect limiting department →</button>` : ""}` : '<div class="cx-note event">Patient flow is clear.</div>'}
       <h4>Departments</h4>
-      ${sim.rooms().map((m) => `<button class="room-line" data-room="${m.id}"><b>${esc(sim.roomName(m.id))} · ${esc(m.status)}</b><br><small>${m.active.length}/${m.capacity} in use · ${m.queue} queued${m.reason ? " · " + esc(m.reason) : ""}</small></button>`).join("")}
+      <div class="cx-depts">${sim.rooms().map(dept).join("")}</div>
+      <div class="cx-banner">${ic("bolt")}<div><b>Take Yolanda’s shift</b><small>Play the anesthesia minigame: a strong shift pays cash, lifts reputation and trains Yolanda.</small></div><button data-cx="shift">Play a shift →</button></div>
       <h4>Demand</h4>
-      <p class="hint">About ${sim.demandPerDay().toFixed(1)} new bookings per day. Bookings rise with reputation and fall as prices rise. Treatable cases: ${
+      <p class="hint">About ${sim.demandPerDay().toFixed(1)} new bookings per day. Bookings rise with reputation and fall as prices rise. Treatable: ${
         c.unlocked.filter((id) => sim.treatable(id)).map((id) => esc(Ci[id].name)).join(", ") || "none yet"
       }.</p>
       <h4>Latest</h4>${notes || "<p><small>Quiet so far.</small></p>"}
       <div class="cx-actions"><button data-cx="open-tab" data-tab="log">Full log</button><button data-cx="toggle-admissions">${t.open ? "Hold new arrivals" : "Resume arrivals"}</button></div>
-      <div class="cx-card"><h5>Take Yolanda’s shift</h5><div class="cx-meta">Play the anesthesia minigame. A strong shift pays a cash bonus, lifts reputation and trains Yolanda.</div><button data-cx="shift">Play a shift →</button></div>
       <p><button data-cx="settings">Settings, saves &amp; new game →</button></p>`;
     },
     goals(ctrl) {
       const sim = ctrl.sim, c = sim.state.career;
+      const ic = YC.ic ?? (() => "");
       const goals = sim.careerGoals();
       const done = goals.filter((g) => g.done).length;
+      const frac = (g) => {
+        if (g.done) return 1;
+        let m = /^(\d+)\/(\d+)/.exec(g.detail);
+        if (m) return +m[1] / +m[2];
+        m = /(\d+)%/.exec(g.label);
+        const v = /^(\d+)%/.exec(g.detail);
+        if (m && v) return Math.min(1, +v[1] / +m[1]);
+        m = /\$([\d,]+)/.exec(g.label);
+        const cash = /^\$([\d,]+) cash/.exec(g.detail);
+        if (m && cash) return Math.min(1, +cash[1].replace(/,/g, "") / +m[1].replace(/,/g, ""));
+        return 0;
+      };
       return `
-      <div class="cx-big-star">${stars(c.stars)}</div>
+      <div class="cx-startrack">${[1, 2, 3].map((i) => ic("star", i <= c.stars ? "fill on" : "")).join("")}</div>
       <p style="text-align:center"><b>${esc(YC.STAR_TITLE[c.stars])}</b>${c.stars < YC.MAX_STARS ? ` → <b>${esc(YC.STAR_TITLE[c.stars + 1])}</b>` : ""}</p>
-      ${c.stars < YC.MAX_STARS ? `<p class="hint">Earn star ${c.stars + 1}: ${done}/${goals.length} goals complete · reward ${kt(YC.STAR_REWARD[c.stars])}.</p>` : ""}
-      ${goals.map((g) => `<div class="objective ${g.done ? "done" : ""}"><b>${g.done ? "✓" : "○"} ${esc(g.label)}</b><small>${esc(g.detail)}</small></div>`).join("")}
+      ${c.stars < YC.MAX_STARS ? `<p class="hint" style="text-align:center">Earn star ${c.stars + 1}: ${done}/${goals.length} goals · reward ${kt(YC.STAR_REWARD[c.stars])}</p>` : ""}
+      ${goals.map((g) => `<div class="cx-goalrow ${g.done ? "done" : ""}"><span class="ck">${ic("check")}</span><div><b>${esc(g.label)}</b><small>${esc(g.detail)}</small>${g.done ? "" : `<div class="bar"><i style="width:${Math.round(frac(g) * 100)}%"></i></div>`}</div></div>`).join("")}
       <h4>What each star unlocks</h4>
       <p class="hint">★ Operating room, regional blocks, billing and mentorship research, larger loans.<br>★★ Cardiac and spine cases, expert hires, advanced equipment upgrades.<br>★★★ Center of Excellence.</p>`;
     },
@@ -122,8 +155,8 @@
           const nextXp = YC.SKILL.xp[s.skill] ?? s.xp;
           const prevXp = YC.SKILL.xp[s.skill - 1] ?? 0;
           const f = s.skill >= 5 ? 100 : clamp100(((s.xp - prevXp) / (nextXp - prevXp)) * 100);
-          return `<div class="cx-card"><div class="cx-row"><h5>${esc(s.name)}</h5><span class="cx-meta">${kt(sim.wageOf(s))}/min</span></div>
-          <div class="cx-meta">${esc(ct[s.role].name)} · <span title="${esc(YC.SKILL.names[s.skill - 1])}">${skillStars(s.skill)}</span> ${esc(YC.SKILL.names[s.skill - 1])} ${trait(s.trait)}</div>
+          return `<div class="cx-card"><div class="cx-staff">${ava(s.name, s.role)}<div><div class="cx-row"><h5>${esc(s.name)}</h5><span class="cx-meta">${kt(sim.wageOf(s))}/min</span></div>
+          <div class="cx-meta">${esc(ct[s.role].name)} · ${pips(s.skill)} ${esc(YC.SKILL.names[s.skill - 1])} ${trait(s.trait)}</div></div></div>
           <div class="cx-bar"><i style="width:${f}%"></i></div>
           <div class="cx-meta">${esc(sim.staffStatus(s))} · energy ${Math.round(s.energy)}%</div>
           <div class="cx-actions"><button data-cx="train" data-id="${s.id}" ${s.skill >= 5 || t.funds < sim.trainCost(s) ? "disabled" : ""}>Course ${kt(sim.trainCost(s))}</button><button data-cx="dismiss" data-id="${s.id}" ${s.name === "Yolanda" ? "disabled" : ""}>Let go</button></div></div>`;
@@ -131,8 +164,8 @@
         .join("");
       const cands = market
         .map(
-          (m) => `<div class="cx-card"><div class="cx-row"><h5>${esc(m.name)}</h5><b>${kt(m.hire)}</b></div>
-          <div class="cx-meta">${esc(ct[m.role].name)} · ${skillStars(m.skill)} ${esc(YC.SKILL.names[m.skill - 1])} ${trait(m.trait)}</div>
+          (m) => `<div class="cx-card"><div class="cx-staff">${ava(m.name, m.role)}<div><div class="cx-row"><h5>${esc(m.name)}</h5><b>${kt(m.hire)}</b></div>
+          <div class="cx-meta">${esc(ct[m.role].name)} · ${pips(m.skill)} ${esc(YC.SKILL.names[m.skill - 1])} ${trait(m.trait)}</div></div></div>
           <div class="cx-meta">${kt(m.wage)}/min · speed ${Math.round((YC.SKILL.efficiency[m.skill - 1] ?? 1) * 100)}%</div>
           <select data-cx-room="${m.id}" aria-label="Assign ${esc(m.name)}">${roomOptions(sim, m.role, bestRoomFor(sim, m.role))}</select>
           <button data-cx="hire" data-id="${m.id}" ${t.funds < m.hire ? "disabled" : ""}>Hire &amp; assign</button></div>`,
@@ -210,6 +243,7 @@
   };
   const clamp100 = (n) => Math.max(0, Math.min(100, n));
   const TAB_LABELS = [["overview", "Overview"], ["goals", "Goals"], ["team", "Team"], ["finance", "Finance"], ["research", "Research"], ["prices", "Prices"]];
+  const TAB_ICON = { overview: "hospital", goals: "goals", team: "staff", finance: "finance", research: "research", prices: "prices" };
   YC.tabs = tabs;
 
   // ---- panel rendering -------------------------------------------------------------------------------
@@ -230,7 +264,7 @@
         body = "<p>Could not draw this view.</p>";
       }
       const titles = { overview: "Center overview", goals: "Goals & stars", team: "Team & hiring", finance: "Finances", research: "Research", prices: "Prices", log: "Activity log" };
-      const nav = `<div class="cx-tabs" role="tablist">${TAB_LABELS.map(([k, l]) => `<button role="tab" data-cx="tab" data-tab="${k}" aria-pressed="${this.cxTab === k}">${l}</button>`).join("")}</div>`;
+      const nav = `<div class="cx-tabs" role="tablist">${TAB_LABELS.map(([k, l]) => `<button role="tab" data-cx="tab" data-tab="${k}" aria-pressed="${this.cxTab === k}">${YC.ic ? YC.ic(TAB_ICON[k]) : ""}<span>${l}</span></button>`).join("")}</div>`;
       const tpl = document.createElement("template");
       tpl.innerHTML = `<div class="panel-title"><div class="panel-mark">${es("overview")}</div><h3>${titles[this.cxTab] ?? "Hospital"}</h3><button id="panel-close" aria-label="Close panel">Close</button></div>${nav}${body}`;
       this.panel.dataset.context = "career";
@@ -399,7 +433,7 @@
     const cel = c.celebrate;
     const el = document.createElement("div");
     el.id = "cx-celebrate";
-    el.innerHTML = `<div class="cx-modal"><div class="cx-big-star">${stars(cel.star)}</div><h2 style="text-align:center;margin:6px 0">${esc(YC.STAR_TITLE[cel.star])}</h2>
+    el.innerHTML = `${[...Array(28)].map((_, i) => `<i class="cx-confetti" style="left:${(i * 37) % 100}%;background:${["#f2c15b", "#3ed0bd", "#ef8a76", "#8be8d6"][i % 4]};animation-delay:${((i * 53) % 10) / 10}s;animation-duration:${2.2 + ((i * 7) % 10) / 8}s"></i>`).join("")}<div class="cx-modal"><div class="cx-startrack">${[1, 2, 3].map((i) => (YC.ic ? YC.ic("star", i <= cel.star ? "fill on" : "") : "")).join("")}</div><h2 style="text-align:center;margin:6px 0">${esc(YC.STAR_TITLE[cel.star])}</h2>
       <p style="text-align:center">Star ${cel.star} earned. A grant of <b>${kt(cel.reward)}</b> has been added to your funds.</p>
       <p class="hint" style="text-align:center">${esc(
         [
@@ -427,13 +461,19 @@
     hasSave = YC.hadSave;
     const el = document.createElement("div");
     el.id = "cx-title";
-    el.innerHTML = `<div class="cx-modal"><h1>Yolanda’s</h1><p class="cx-sub">Specialty Medical Center · build a hospital, run the anesthesia team</p>
-      ${hasSave ? '<button class="primary" id="cx-continue"><b>Continue</b><small>Pick up your saved center</small></button>' : ""}
-      <button class="${hasSave ? "" : "primary"}" id="cx-career"><b>New career</b><small>A furnished, staffed center. Grow reputation, research, earn three stars.</small></button>
-      <button id="cx-guided"><b>Guided Opening Day</b><small>The short tutorial: welcome your first patient, then continue in career mode.</small></button>
-      <button id="cx-shift"><b>Play Yolanda’s shift</b><small>The anesthesia minigame: prep ahead and keep every case safe.</small></button>
-      <button id="cx-build"><b>Construction sandbox</b><small>Free building with no patients or money.</small></button>
-      <p class="hint" style="font-size:11px;opacity:.7;margin-top:12px">An entertainment game inspired by anesthesia workflow. All cases are fictional; no clinical instruction.</p></div>`;
+    const ic = YC.ic ?? (() => "");
+    el.innerHTML = `<div class="cx-modal cx-titlecard">
+      <div class="cx-logo">${ic("hospital")}</div>
+      <h1>Yolanda’s</h1><p class="cx-sub">Specialty Medical Center</p>
+      <p class="cx-tag">Build a hospital. Run the anesthesia team. Earn three stars.</p>
+      ${hasSave ? `<button class="primary big" id="cx-continue">${ic("play")}<span><b>Continue</b><small>Pick up your saved center</small></span></button>` : ""}
+      <button class="${hasSave ? "big" : "primary big"}" id="cx-career">${ic("star", "fill")}<span><b>New career</b><small>A furnished, staffed center. Grow reputation, research, hire, upgrade.</small></span></button>
+      <div class="cx-grid3">
+        <button id="cx-guided">${ic("goals")}<b>Guided opening</b><small>Short tutorial</small></button>
+        <button id="cx-shift">${ic("bolt")}<b>Play a shift</b><small>Anesthesia minigame</small></button>
+        <button id="cx-build">${ic("build")}<b>Sandbox</b><small>Free building</small></button>
+      </div>
+      <p class="cx-fine">An entertainment game inspired by anesthesia workflow. All cases are fictional; no clinical instruction.</p></div>`;
     document.getElementById("app").append(el);
     const done = () => el.remove();
     el.querySelector("#cx-continue")?.addEventListener("click", done);
@@ -463,6 +503,7 @@
   window.careerReady = function (ctrl) {
     ctrlRef = ctrl;
     window.YC.controller = ctrl;
+    YC.decorLoaded?.then(() => ctrl.adapter.view.refreshAssets());
     const params = new URLSearchParams(location.search);
     if (params.get("title") === "0") return;
     ctrl.sim.state.paused = true;

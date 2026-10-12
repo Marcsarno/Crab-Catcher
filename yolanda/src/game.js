@@ -29903,32 +29903,82 @@ void main() {
         ),
           a.updateMatrixWorld(!0));
       };
+    // +1 when the left leg is on the +x side of the body
+    let gaitSide = () => {
+        a.updateMatrixWorld(!0);
+        return Math.sign(
+          m[0].thigh.getWorldPosition(new R()).x -
+            m[1].thigh.getWorldPosition(new R()).x,
+        ) || 1;
+      },
+      // sign (+1/-1) of rotating the upper arm about world x that carries the elbow forward (+z)
+      armForward = (arm, elbow, axis) => {
+        let tip = elbow ?? arm.children.find((n2) => n2 instanceof sa);
+        if (!tip) return 1;
+        let q0 = arm.quaternion.clone();
+        a.updateMatrixWorld(!0);
+        let z0 = tip.getWorldPosition(new R()).z;
+        arm.quaternion.premultiply(new At().setFromAxisAngle(axis, 0.3));
+        a.updateMatrixWorld(!0);
+        let z1 = tip.getWorldPosition(new R()).z;
+        arm.quaternion.copy(q0);
+        a.updateMatrixWorld(!0);
+        return z1 >= z0 ? 1 : -1;
+      };
     for (let b = 0; b <= v; b++) {
       let S = b / v;
       g.push(S);
       for (let [T, E] of s)
         (T.position.copy(E.p), T.quaternion.copy(E.q), T.scale.copy(E.s));
       (c && ((c.position.x = s.get(c).p.x), (c.position.z = s.get(c).p.z)),
-        (o.position.y -= 0.06 / d));
+        // pelvis sinks into double support and rises over the planted foot
+        (o.position.y -= (0.058 + 0.016 * Math.cos(S * Math.PI * 4)) / d));
+      // hips and shoulders twist against each other, spine absorbs the difference
+      {
+        let side = gaitSide(),
+          twist = Math.cos(S * Math.PI * 2);
+        a.updateMatrixWorld(!0);
+        let yaw = (bone, ang) => {
+          if (!bone) return;
+          let ax = new R(0, 1, 0).applyQuaternion(
+            bone.parent.getWorldQuaternion(new At()).invert(),
+          );
+          bone.quaternion.premultiply(new At().setFromAxisAngle(ax, ang));
+          a.updateMatrixWorld(!0);
+        };
+        yaw(o, -side * 0.07 * twist);
+        yaw(l, side * 0.17 * twist);
+      }
       for (let [T, E] of [
         ["L", 0],
         ["R", 0.5],
       ]) {
-        let I = r(t ? "upperarm_" + T.toLowerCase() : "upper_arm" + T);
+        let I = r(t ? "upperarm_" + T.toLowerCase() : "upper_arm" + T),
+          Q = r(t ? "forearm_" + T.toLowerCase() : "forearm" + T);
         if (I) {
           a.updateMatrixWorld(!0);
           let w = new R(1, 0, 0).applyQuaternion(
-            I.parent.getWorldQuaternion(new At()).invert(),
-          );
-          I.quaternion.premultiply(
-            new At().setFromAxisAngle(
-              w,
-              Math.sin((S + E) * Math.PI * 2) * 0.17,
+              I.parent.getWorldQuaternion(new At()).invert(),
             ),
-          );
+            k = armForward(I, Q, w),
+            ph = Math.cos((S + E - 0.56) * Math.PI * 2),
+            sw = ph * 0.46 + 0.04;
+          I.quaternion.premultiply(new At().setFromAxisAngle(w, k * sw));
+          if (Q) {
+            a.updateMatrixWorld(!0);
+            let q2 = new R(1, 0, 0).applyQuaternion(
+              Q.parent.getWorldQuaternion(new At()).invert(),
+            );
+            Q.quaternion.premultiply(
+              new At().setFromAxisAngle(
+                q2,
+                k * (0.22 + 0.3 * Math.max(0, ph)),
+              ),
+            );
+          }
         }
       }
-      (l && l.quaternion.copy(s.get(l).q), a.updateMatrixWorld(!0));
+      a.updateMatrixWorld(!0);
       for (let T of m) {
         let E = (S + T.offset) % 1,
           I,
@@ -35986,11 +36036,23 @@ void main() {
     return Br(a)?.investment ?? 0;
   }
   function Cr(a) {
-    let k = Object.values(xl).find((k) => k.assets.includes(a.asset)),
-      t = k?.tiers[a.tier];
-    return t?.url && (a.tier === 3 || (a.tier === 2 && k.modelTier2))
-      ? { key: t.key ?? `upgrade-${k.id}-${a.asset}-${a.tier}`, url: t.url, yaw: t.yaw ?? 0 }
-      : void 0;
+    let k = Object.values(xl).find((k) => k.assets.includes(a.asset));
+    if (!k) return;
+    let tier = a.tier ?? (k.baseTier ?? 1),
+      t = k.tiers[tier],
+      show = tier === 3 || (tier === 2 && k.modelTier2) || (tier === 1 && k.starterModel);
+    if (!t || !show || !(t.url || t.urls)) return;
+    let n = -1;
+    if (t.urls) {
+      n = 0;
+      for (let c of String(a.id ?? "")) n = (n * 31 + c.charCodeAt(0)) >>> 0;
+      n %= t.urls.length;
+    }
+    return {
+      key: t.key ?? `upgrade-${k.id}-${a.asset}-${tier}${n >= 0 ? "-" + n : ""}`,
+      url: n >= 0 ? t.urls[n] : t.url,
+      yaw: t.yaw ?? 0,
+    };
   }
   function nb(a) {
     return a.tier !== void 0 && (![2, 3].includes(a.tier) || !Br(a))
@@ -38198,6 +38260,8 @@ void main() {
           (d) =>
             d.roomId === s.id &&
             ![
+              "endoscopy",
+              "surgery",
               "lobby-b",
               "lobby-a",
               "lobby-a-review",
@@ -43239,6 +43303,10 @@ void main() {
               r = new Ue();
             for (let o of e.assemblies ?? []) {
               let l = new Map(),
+                tp =
+                  o.templateId === "lobby-starter"
+                    ? window.YC?.lobbyFloor?.(e, o)
+                    : void 0,
                 c = (d, u, h, p, m) => {
                   let _ = l.get(d) ?? [];
                   (_.push({ x: u, z: h, w: p, d: m }), l.set(d, _));
@@ -43299,7 +43367,9 @@ void main() {
                       u.x === o.origin.x + o.width - 1 ||
                       u.y === o.origin.y + o.depth - 1;
                   c(
-                    o.floorStyle === "plain" || h
+                    tp
+                      ? tp[(u.x + u.y) % 2]
+                      : o.floorStyle === "plain" || h
                       ? 15328465
                       : (u.x + u.y) % 2
                         ? 9549489
@@ -50014,7 +50084,7 @@ void main() {
         renderCatalog() {
           ((this.element.innerHTML =
             '<div class="room-heading"><div><small>BUILD YOUR CENTER</small><h2>Furnished rooms</h2></div><button id="room-close" aria-label="Close room catalog">\xD7</button></div><p class="room-caption">Choose a layout. Place it beside a connected hallway.</p><div class="room-cards">' +
-            Uh.map((e) => {
+            Uh.filter((e) => !e.hidden).map((e) => {
               let lock = window.YC?.templateLock?.(e);
               return `<button data-room-template="${e.id}" ${lock ? "disabled" : ""}><strong>${e.name}</strong><span>${e.width * 1.25} \xD7 ${e.depth * 1.25} m \xB7 from $${Fh(e).toLocaleString()}</span><small>${lock ?? e.status}</small></button>`;
             }).join("") +
@@ -51080,7 +51150,7 @@ void main() {
                 )}</p><button id="room-next" class="primary-action">${_.label} \u2192</button><div class="panel-actions"><button id="room-occupants">People & queue (${h.active.length + h.queue + h.staff.length})</button><button id="room-details">${this.expanded ? "Less detail" : "More details"}</button></div>`),
                 this.expanded &&
                   (s += `<h4>Capacity</h4><p>${h.installedCapacity} physical stations \xB7 ${h.physicalCapacity} equipped \xB7 ${h.capacity} staffed. Extra staff cannot create stations.</p><h4>Assigned team</h4>${h.staff.map((f) => `<button class="room-line" data-person="${f.id}">${He(f.name)}<small>${He(e.staffStatus(f))}</small></button>`).join("") || "<p>No staff assigned.</p>"}<h4>Equipment</h4><p>${h.objects.map((f) => He(Dh(f.asset))).join(" \xB7 ")}</p>${h.objects
-                    .filter((f) => xl.reception.assets.includes(f.asset))
+                    .filter(() => !1)
                     .map((f) =>
                       f.tier === 3
                         ? "<p>\u2713 Advanced reception \xB7 25% shorter registration</p>"

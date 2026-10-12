@@ -48,10 +48,22 @@ original tutorial, which now hands over to career mode), **Play Yolanda’s shif
 * **Equipment upgrades.** Every core station (anesthesia workstation, endoscopy tower, stretcher, operating table,
   AirReady, SedaPrep, ThermaNest, IV stand, supply cart) can be upgraded to the Standard or Advanced kit model.
   Upgrades change speed, prep time or complication risk. (Reception already had one.)
+  Everything **starts at the shabby Starter tier** (mismatched chairs, plain desk, basic equipment) and the three
+  tiers use the supplied Starter / Standard / Advanced models.
+* **Starter layout.** The career opens in a spine-and-concourse floor plan built from the game’s own room
+  templates: Starter lobby (one desk, only **four mismatched chairs** — the seating squeeze is the nudge to upgrade),
+  Assessment, Restroom, Janitor, Endoscopy and Recovery. Nicer lobby fittings (Standard chairs, Sculpted bench,
+  upgraded desk, floor finish, wayfinding and posters) lift waiting patients’ mood.
+* **Clinical decor.** Assessment and Recovery get anatomy wall art, service headwalls, bay and room signs from the
+  Clinical Identity Kit (`assets/models/decor2`).
 * **Yolanda’s shift ↔ hospital link.** Finish a shift in the minigame; return to the center for a cash bonus,
   reputation and XP for Yolanda.
-* **Hub UI.** Hospital → Overview / Goals / Team / Finance / Research / Prices / Log, HUD reputation read-out,
-  notice toasts, star celebration, coaching tips.
+* **Modern interface** (`src/mods/35-modern-ui.js`). Graphical HUD (cash with +$ popups, reputation ring, mood
+  face, patients, day clock), a goal tracker with segmented progress, a bottleneck alert, an icon dock with direct
+  access to Team / Goals / Research / Finance / Hospital (a “More” sheet on phones), a drawer on desktop and a bottom
+  sheet on mobile, avatar-and-pip staff cards, department cards with utilisation, and a rebuilt title screen.
+* **Animation.** Procedural walk cycle with counter-swinging arms, elbow bend, hip/shoulder twist and a pelvis bob
+  over planted feet.
 
 ## Fixes to the original build
 
