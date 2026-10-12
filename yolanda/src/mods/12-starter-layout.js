@@ -40,6 +40,8 @@
     ],
   });
 
+  YC.placeTemplate = (state, templateId, origin, rotation = 0) => Dl(state, { templateId, origin, rotation });
+
   YC.careerLayout = function () {
     const base = ya();
     const e = ni(base.config);
