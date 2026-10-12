@@ -49,6 +49,15 @@
   proto.careerOn = function () {
     return !!this.state.career?.active;
   };
+  // Timed modifiers granted by decision cards: {kind: {v, until}} stored on the career state.
+  proto.buff = function (kind) {
+    const b = this.state.career?.buffs?.[kind];
+    return b && this.state.time < b.until ? b.v : null;
+  };
+  proto.addBuff = function (kind, v, seconds) {
+    const c = this.state.career;
+    (c.buffs ||= {})[kind] = { v, until: this.state.time + seconds };
+  };
   proto.careerEnsure = function () {
     const t = this.state;
     if (!t.career) {
@@ -289,6 +298,7 @@
     if (c.surge && t.time < c.surge.until) gap *= 0.6;
     if (c.pressUntil && t.time < c.pressUntil) gap *= 0.8;
     gap *= 0.8 + this.crand() * 0.4;
+    gap *= this.buff("arrivals") ?? 1;
     // opening rush: the first couple of minutes are busy so there is always something to react to
     if (t.time < YC.RUSH_UNTIL) gap = Math.min(gap, 14 + this.crand() * 10);
     return Math.max(10, gap);
@@ -371,6 +381,7 @@
     if (Ri[p.stage]) m += this.lobbyComfort?.() ?? 0;
     if ((p.comfort?.toiletNeed ?? 0) >= Zi.needAt) m -= 10;
     if ((p.comfort?.boredom ?? 0) > 60) m -= 5;
+    m += (this.buff("mood") ?? 0) + (YC.PLAN[p.plan]?.mood ?? 0);
     if (p.complication) m -= 15;
     if (p.introductory) m = Math.max(60, m);
     return clamp(m, 0, 100);
@@ -394,6 +405,7 @@
     if (p.urgent) pay *= 2;
     if (p.vip) pay *= p.satisfaction >= 70 ? 2.5 : 0.8;
     if (p.complication) pay *= 0.7;
+    pay *= (this.buff("pay") ?? 1) * (YC.PLAN[p.plan]?.pay ?? 1);
     return Math.round(pay);
   };
   proto.onProcedureDone = function (p) {
@@ -405,7 +417,7 @@
     if (staff.some((s) => s.energy < Dt.tiredAt)) risk *= 1.5;
     if (c.perks.handoff) risk *= 0.9;
     if (c.perks.safety) risk *= 0.7;
-    risk *= this.upgradeRiskFactor?.(p) ?? 1;
+    risk *= (this.upgradeRiskFactor?.(p) ?? 1) * (YC.PLAN[p.plan]?.risk ?? 1);
     if (this.crand() < clamp(risk, 0, 0.5)) {
       p.complication = true;
       c.complications++;
@@ -418,7 +430,8 @@
     let d = baseCaseDuration.call(this, p, stage);
     if (this.careerOn()) d *= YC.PACE; // everything in the care journey runs faster than the original build
     if (this.careerOn() && stage === "recovery") d *= (p.complication ? 1.5 : 1) * 0.8;
-    if (this.careerOn() && stage === "procedure") d *= this.upgradeSpeedFactor?.(p) ?? 1;
+    if (this.careerOn() && stage === "procedure") d *= (this.upgradeSpeedFactor?.(p) ?? 1) * (YC.PLAN[p.plan]?.speed ?? 1);
+    if (this.careerOn()) d *= this.buff("speed") ?? 1;
     return d;
   };
   proto.onDischarge = function (p, pay) {
@@ -827,6 +840,12 @@
   };
 
   // ---- starting a career game -------------------------------------------------------------------------
+  // Comfort plan chosen for each patient before their procedure: the player trades speed against comfort and risk.
+  YC.PLAN = {
+    comfort: { name: "Comfort-first", speed: 1.25, risk: 0.6, mood: 8, pay: 1.08 },
+    standard: { name: "Standard", speed: 1, risk: 1, mood: 0, pay: 1 },
+    fast: { name: "Fast-track", speed: 0.8, risk: 1.5, mood: -6, pay: 1 },
+  };
   YC.ARRIVAL_BASE = 55; // seconds between bookings at 0% rep scale (was 110)
   YC.RUSH_UNTIL = 150; // opening rush window in sim seconds
   YC.PACE = 0.6; // care-journey duration multiplier (assessment, prep, procedure, recovery)

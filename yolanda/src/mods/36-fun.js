@@ -147,7 +147,7 @@
     const c = t.career;
     if (!t.open && t.time === 0) return "Press Open to welcome your first patient";
     const fl = sim.flowConstraint?.();
-    if (fl) {
+    if (fl && fl.waiting >= 3) {
       const dept = fl.department;
       if (/reception/i.test(dept)) return "Queue at reception: hire another receptionist";
       if (/assessment/i.test(dept)) return "Queue at assessment: add a CRNA or room";

@@ -371,7 +371,7 @@
         <button class="cx-gear cx-snd" data-act="sound" aria-label="Sound on or off" data-f="snd">${ic("sound")}</button>
         <button class="cx-gear" data-act="settings" aria-label="Settings and saves">${ic("gear")}</button>
       </div>
-      <button id="cx-goal" data-act="tab:goals" aria-label="Open goals"><div class="stars" data-f="stars"></div><div class="txt"><small data-f="goalhead">Goals</small><b data-f="goaltext"></b><div class="seg" data-f="seg"></div></div>${ic("chevron")}</button>
+      <button id="cx-goal" data-act="goal" aria-label="Open the next step or goals"><div class="stars" data-f="stars"></div><div class="txt"><small data-f="goalhead">Goals</small><b data-f="goaltext"></b><div class="seg" data-f="seg"></div></div>${ic("chevron")}</button>
       <button id="cx-alert" data-act="alert" aria-label="Inspect bottleneck">${ic("alert")}<div><b data-f="alerthead"></b><small data-f="alerttext"></small></div></button>
       <nav id="cx-dock" aria-label="Center management">
         <button class="cx-play" data-act="play" data-f="play" aria-label="Open or pause the center"></button>
@@ -404,6 +404,11 @@
       else if (act === "alert") ctrl.ui.querySelector("#flow-goal").click();
       else if (act === "settings") ctrl.navigate("settings");
       else if (act === "sound") YC.toggleSound?.();
+      else if (act === "goal") {
+        const fl = ctrl.sim.flowConstraint?.();
+        if (fl?.roomId && fl.waiting >= 3) ctrl.ui.querySelector("#flow-goal").click();
+        else openTab(ctrl, "goals");
+      }
       else if (act === "more") sheet.classList.toggle("on");
       else if (act.startsWith("tab:")) openTab(ctrl, act.slice(4));
     });

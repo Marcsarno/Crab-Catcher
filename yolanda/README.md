@@ -53,7 +53,7 @@ The Yolanda’s-shift minigame is on hold and no longer linked from the interfac
 * **Starter layout.** The career opens in a spine-and-concourse floor plan built from the game’s own room
   templates: Starter lobby (one desk, only **four mismatched chairs** — the seating squeeze is the nudge to upgrade),
   Assessment, Restroom, Janitor, Endoscopy and Recovery. Nicer lobby fittings (Standard chairs, Sculpted bench,
-  upgraded desk, floor finish, wayfinding and posters) lift waiting patients’ mood.
+  upgraded desk) lift waiting patients’ mood by up to +12; floor finish, wayfinding and posters are cosmetic for now.
 * **Clinical decor.** Assessment and Recovery get anatomy wall art, service headwalls, bay and room signs from the
   Clinical Identity Kit (`assets/models/decor2`).
 * **Yolanda’s shift ↔ hospital link.** Finish a shift in the minigame; return to the center for a cash bonus,
@@ -62,6 +62,13 @@ The Yolanda’s-shift minigame is on hold and no longer linked from the interfac
   face, patients, day clock), a goal tracker with segmented progress, a bottleneck alert, an icon dock with direct
   access to Team / Goals / Research / Finance / Hospital (a “More” sheet on phones), a drawer on desktop and a bottom
   sheet on mobile, avatar-and-pip staff cards, department cards with utilisation, and a rebuilt title screen.
+* **Decisions** (`src/mods/37-decisions.js`). About every minute of game time a card asks for a call with a visible cost and
+  a real trade-off: a comfort plan for a named patient (comfort-first / standard / fast-track: speed against mood and
+  risk), a walk-in rush, a jammed queue, a tired team member, a supplier, a livestreaming patient, a rattling scope,
+  an intern's shortcut. Ignore a card and its default applies. A pipeline strip (check-in, assessment, procedure,
+  recovery) shows where patients are and which stage is backing up; tap a pill to jump there.
+* **Pace and feel.** Busy opening, a faster care journey, an early first event, sound effects and a soft background
+  loop (sound toggle in the HUD or More menu), varied discharge lines and a "next step" prompt.
 * **Animation.** Procedural walk cycle with counter-swinging arms, elbow bend, hip/shoulder twist and a pelvis bob
   over planted feet.
 
