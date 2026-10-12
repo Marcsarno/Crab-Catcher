@@ -28,8 +28,8 @@ run inside the same closure and use the original minified names (`ct` staff role
 
 ## What the career layer adds
 
-Start from the title screen: **New career** (furnished and staffed, ready to open), **Guided Opening Day** (the
-original tutorial, which now hands over to career mode), **Play Yolanda’s shift**, or the **Construction sandbox**.
+Start from the title screen: **New career** (furnished and staffed, ready to open), **Tutorial** (Opening Day on the same floor plan, which hands over to career mode) or the **Construction sandbox**.
+The Yolanda’s-shift minigame is on hold and no longer linked from the interface.
 
 * **Endless demand and reputation.** The fixed appointment list is gone. Bookings follow reputation (0–100%), prices
   and events, capped by hospital size. Patients have patience: long waits, unmet toilet needs and boredom drop their

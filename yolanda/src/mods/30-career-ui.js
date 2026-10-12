@@ -113,12 +113,11 @@
       ${fl ? `<div class="cx-note bad"><b>${esc(fl.department)}</b> · ${fl.waiting} waiting. ${esc(fl.reason)}</div>${fl.roomId ? `<button data-room="${fl.roomId}">Inspect limiting department →</button>` : ""}` : '<div class="cx-note event">Patient flow is clear.</div>'}
       <h4>Departments</h4>
       <div class="cx-depts">${sim.rooms().map(dept).join("")}</div>
-      <div class="cx-banner">${ic("bolt")}<div><b>Take Yolanda’s shift</b><small>Play the anesthesia minigame: a strong shift pays cash, lifts reputation and trains Yolanda.</small></div><button data-cx="shift">Play a shift →</button></div>
-      <h4>Demand</h4>
+      <div class="cx-more-info"><h4>Demand</h4>
       <p class="hint">About ${sim.demandPerDay().toFixed(1)} new bookings per day. Bookings rise with reputation and fall as prices rise. Treatable: ${
         c.unlocked.filter((id) => sim.treatable(id)).map((id) => esc(Ci[id].name)).join(", ") || "none yet"
       }.</p>
-      <h4>Latest</h4>${notes || "<p><small>Quiet so far.</small></p>"}
+      <h4>Latest</h4>${notes || "<p><small>Quiet so far.</small></p>"}</div>
       <div class="cx-actions"><button data-cx="open-tab" data-tab="log">Full log</button><button data-cx="toggle-admissions">${t.open ? "Hold new arrivals" : "Resume arrivals"}</button></div>
       <p><button data-cx="settings">Settings, saves &amp; new game →</button></p>`;
     },
@@ -144,8 +143,8 @@
       <p style="text-align:center"><b>${esc(YC.STAR_TITLE[c.stars])}</b>${c.stars < YC.MAX_STARS ? ` → <b>${esc(YC.STAR_TITLE[c.stars + 1])}</b>` : ""}</p>
       ${c.stars < YC.MAX_STARS ? `<p class="hint" style="text-align:center">Earn star ${c.stars + 1}: ${done}/${goals.length} goals · reward ${kt(YC.STAR_REWARD[c.stars])}</p>` : ""}
       ${goals.map((g) => `<div class="cx-goalrow ${g.done ? "done" : ""}"><span class="ck">${ic("check")}</span><div><b>${esc(g.label)}</b><small>${esc(g.detail)}</small>${g.done ? "" : `<div class="bar"><i style="width:${Math.round(frac(g) * 100)}%"></i></div>`}</div></div>`).join("")}
-      <h4>What each star unlocks</h4>
-      <p class="hint">★ Operating room, regional blocks, billing and mentorship research, larger loans.<br>★★ Cardiac and spine cases, expert hires, advanced equipment upgrades.<br>★★★ Center of Excellence.</p>`;
+      <div class="cx-more-info"><h4>What each star unlocks</h4>
+      <p class="hint">★ Operating room, regional blocks, billing and mentorship research, larger loans.<br>★★ Cardiac and spine cases, expert hires, advanced equipment upgrades.<br>★★★ Center of Excellence.</p></div>`;
     },
     team(ctrl) {
       const sim = ctrl.sim, t = sim.state;
@@ -465,15 +464,13 @@
     el.innerHTML = `<div class="cx-modal cx-titlecard">
       <div class="cx-logo">${ic("hospital")}</div>
       <h1>Yolanda’s</h1><p class="cx-sub">Specialty Medical Center</p>
-      <p class="cx-tag">Build a hospital. Run the anesthesia team. Earn three stars.</p>
-      ${hasSave ? `<button class="primary big" id="cx-continue">${ic("play")}<span><b>Continue</b><small>Pick up your saved center</small></span></button>` : ""}
-      <button class="${hasSave ? "big" : "primary big"}" id="cx-career">${ic("star", "fill")}<span><b>New career</b><small>A furnished, staffed center. Grow reputation, research, hire, upgrade.</small></span></button>
+      ${hasSave ? `<button class="primary big" id="cx-continue">${ic("play")}<span><b>Continue</b></span></button>` : ""}
+      <button class="${hasSave ? "big" : "primary big"}" id="cx-career">${ic("star", "fill")}<span><b>New career</b><small>Build, hire, research, earn 3 stars</small></span></button>
       <div class="cx-grid3">
-        <button id="cx-guided">${ic("goals")}<b>Guided opening</b><small>Short tutorial</small></button>
-        <button id="cx-shift">${ic("bolt")}<b>Play a shift</b><small>Anesthesia minigame</small></button>
-        <button id="cx-build">${ic("build")}<b>Sandbox</b><small>Free building</small></button>
+        <button id="cx-guided">${ic("goals")}<b>Tutorial</b><small>Opening day</small></button>
+        <button id="cx-build">${ic("build")}<b>Sandbox</b><small>Build freely</small></button>
       </div>
-      <p class="cx-fine">An entertainment game inspired by anesthesia workflow. All cases are fictional; no clinical instruction.</p></div>`;
+      <p class="cx-fine">Entertainment only. Fictional cases, no clinical instruction.</p></div>`;
     document.getElementById("app").append(el);
     const done = () => el.remove();
     el.querySelector("#cx-continue")?.addEventListener("click", done);
@@ -489,7 +486,6 @@
       ctrl.replace(dm());
       done();
     };
-    el.querySelector("#cx-shift").onclick = () => YC.startShift(ctrl);
     el.querySelector("#cx-build").onclick = () => (location.search = "?mode=builder");
   };
 

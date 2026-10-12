@@ -144,32 +144,102 @@
   }
   @keyframes cxSlide{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:none}}
   @media (max-width:760px){
-    body.cx-modern:not(.build-mode) #management-panel{left:8px!important;right:8px!important;width:auto!important;max-width:none!important;bottom:calc(max(14px,env(safe-area-inset-bottom)) + 76px)!important;max-height:56dvh!important;border-radius:22px 22px 18px 18px}
-    body.cx-modern:not(.build-mode) #management-panel::before{content:"";display:block;width:38px;height:4px;border-radius:9px;background:#17414a30;margin:-2px auto 8px}
-    #cx-hud{left:8px;right:8px;max-width:none;display:grid!important;grid-template-columns:repeat(6,1fr);gap:5px;padding:5px;border-radius:18px}
-    #cx-hud .cx-brand{display:none}
-    #cx-hud .cx-chip{padding:5px 8px;gap:6px}
-    #cx-hud .cx-cash{grid-column:span 3;grid-row:1}
-    #cx-hud .cx-day{grid-column:span 2;grid-row:1}
-    #cx-hud .cx-gear{grid-column:span 1;grid-row:1;width:auto}
-    #cx-hud .cx-rep,#cx-hud .cx-mood,#cx-hud .cx-pts{grid-column:span 2;grid-row:2}
-    #cx-hud .cx-chip b{font-size:14.5px}.cx-cash b{font-size:16px!important}
-    #cx-hud .cx-chip small{font-size:9px;letter-spacing:.4px}
-    #cx-hud .cx-ring{width:28px;height:28px}.cx-ring svg{width:28px;height:28px}.cx-ring .cx-ic{width:12px;height:12px}
-    .cx-mood>.cx-ic{width:24px;height:24px}
-    body.cx-modern:not(.build-mode) .camera-controls{top:calc(max(10px,env(safe-area-inset-top)) + 132px)!important}
-    #cx-goal,#cx-alert{left:8px;width:calc(100vw - 86px);top:calc(max(10px,env(safe-area-inset-top)) + 132px);padding:6px 10px}
-    #cx-alert{top:calc(max(10px,env(safe-area-inset-top)) + 192px)}
-    #cx-goal .stars .cx-ic{width:16px;height:16px}
-    #cx-dock{left:8px;right:8px;transform:none;justify-content:space-between;padding:6px;gap:2px;border-radius:24px;bottom:max(10px,env(safe-area-inset-bottom))}
-    #cx-dock button{min-width:0;flex:1;padding:0 2px}
-    #cx-dock .cx-play{flex:1.7;min-width:0}
+    :root{--cx-top:max(6px,env(safe-area-inset-top));--cx-bot:max(8px,env(safe-area-inset-bottom))}
+    /* one slim HUD row */
+    #cx-hud{top:var(--cx-top);left:6px;right:6px;max-width:none;display:flex!important;gap:4px;padding:4px;border-radius:16px}
+    #cx-hud .cx-brand,#cx-hud .cx-pts,#cx-hud small,#cx-hud .cx-dayprog{display:none}
+    #cx-hud .cx-chip{flex:1 1 auto;justify-content:center;padding:0 7px;gap:5px;height:38px;border-radius:12px}
+    #cx-hud .cx-chip b{font-size:13.5px}
+    #cx-hud .cx-cash{flex:1.5 0 auto;min-width:max-content}.cx-cash b{font-size:15px!important}
+    #cx-hud .cx-cash>.cx-ic{display:none}
+    #cx-hud .cx-day{padding-bottom:0}
+    #cx-hud .cx-day>.cx-ic{display:none}
+    #cx-hud .cx-ring{width:24px;height:24px}.cx-ring svg{width:24px;height:24px}.cx-ring circle{stroke-width:5}.cx-ring .cx-ic{width:10px;height:10px}
+    .cx-mood>.cx-ic{width:22px;height:22px}
+    #cx-hud .cx-gear{flex:0 0 36px;width:36px;height:38px}
+    #cx-hud .cx-gear .cx-ic{width:19px;height:19px}
+    /* goal pill and alert */
+    #cx-goal,#cx-alert{left:6px;width:calc(100vw - 72px);top:calc(var(--cx-top) + 50px);padding:5px 10px;gap:8px;border-radius:13px}
+    #cx-goal .stars .cx-ic{width:13px;height:13px}
+    #cx-goal .txt small{display:none}
+    #cx-goal .txt b{margin:0 0 3px;font-size:12px}
+    #cx-goal .seg i{height:3px}
+    #cx-goal>.cx-ic{display:none}
+    #cx-alert{top:calc(var(--cx-top) + 96px);width:auto;max-width:calc(100vw - 72px)}
+    #cx-alert small{display:none}
+    body.cx-modern:not(.build-mode) .camera-controls{top:calc(var(--cx-top) + 50px)!important}
+    /* slim icon dock */
+    #cx-dock{left:6px;right:6px;bottom:var(--cx-bot);transform:none;justify-content:space-between;padding:4px;gap:1px;border-radius:20px}
+    #cx-dock button{min-width:0;flex:1;height:46px;padding:0 1px;gap:2px;font-size:10px;border-radius:15px}
+    #cx-dock button .cx-ic{width:21px;height:21px}
+    #cx-dock .cx-play{flex:0 0 52px;min-width:0;height:46px;border-radius:16px}
+    #cx-dock .cx-play span{display:none}
+    #cx-dock .cx-play.first{flex:0 0 84px;min-width:0}#cx-dock .cx-play.first span{display:inline}
+    #cx-dock .cx-speed{flex:0 0 40px;min-width:0;font-size:14px}#cx-dock .cx-speed small{display:none}
+    #cx-dock button.active::after{bottom:1px}
     #cx-dock .d-only,#cx-dock .sep{display:none}
     #cx-dock .m-only{display:flex}
-    #cx-sheet{bottom:calc(max(10px,env(safe-area-inset-bottom)) + 76px)}
+    #cx-dock .cx-badge{top:2px;right:calc(50% - 20px)}
+    #cx-dock .cx-badge.dot{top:5px;right:calc(50% - 15px)}
+    #cx-sheet{bottom:calc(var(--cx-bot) + 58px);gap:6px;padding:8px;border-radius:18px}
+    #cx-sheet button{padding:9px 2px;gap:4px;font-size:11px;border-radius:13px}
+    #cx-sheet .cx-ic{width:22px;height:22px}
+    /* compact bottom sheet */
+    body.cx-modern:not(.build-mode) #management-panel{left:6px!important;right:6px!important;width:auto!important;max-width:none!important;bottom:calc(var(--cx-bot) + 58px)!important;max-height:44dvh!important;padding:8px 10px 12px;border-radius:20px}
+    body.cx-modern:not(.build-mode) #management-panel::before{content:"";display:block;width:34px;height:4px;border-radius:9px;background:#17414a2e;margin:0 auto 6px}
+    body.cx-modern:not(.build-mode) #management-panel .panel-title{margin-bottom:4px;padding-bottom:4px;align-items:center}
+    body.cx-modern:not(.build-mode) #management-panel .panel-title h3{font-size:16px}
+    body.cx-modern:not(.build-mode) #management-panel .panel-mark{display:none}
+    body.cx-modern:not(.build-mode) #management-panel #panel-close{font-size:0!important;width:34px;min-width:34px;height:34px;min-height:34px;padding:0;border-radius:50%;display:grid;place-items:center}
+    body.cx-modern:not(.build-mode) #management-panel #panel-close::before{content:"✕";font-size:14px;color:#17414a}
+    body.cx-modern:not(.build-mode) #management-panel #panel-back{font-size:0!important;width:34px;min-width:34px;height:34px;min-height:34px;padding:0}
+    body.cx-modern:not(.build-mode) #management-panel #panel-back::before{content:"‹";font-size:22px;color:#17414a}
+    #management-panel .hint,#management-panel .cx-more-info,#management-panel .cx-note.event{display:none!important}
+    #management-panel .cx-tabs{display:flex!important;margin:0 0 6px!important;gap:3px!important}
+    #management-panel .cx-tabs button{flex:1 1 0!important;min-width:0;min-height:34px!important;padding:3px 2px!important;flex-direction:row!important;gap:5px!important;justify-content:center}
+    #management-panel .cx-tabs button span{display:none}
+    #management-panel .cx-tabs button[aria-pressed=true] span{display:inline;font-size:11px}
+    #management-panel .cx-tabs button[aria-pressed=true]{flex:2.6 1 0!important}
+    .cx-hero{padding:9px 11px;gap:10px;margin:2px 0 7px}
+    .cx-bigring,.cx-bigring svg{width:64px;height:64px}.cx-bigring circle{stroke-width:9}
+    .cx-bigring b{font-size:16px}.cx-bigring small{display:none}
+    .cx-hero .side{gap:6px}
+    .cx-tiles{gap:5px;margin-bottom:7px}.cx-tile{padding:5px 2px;border-radius:11px}.cx-tile b{font-size:13px}.cx-tile .cx-ic{width:16px;height:16px}#management-panel .cx-tile small{display:none}
+    .cx-hero .side .cx-meter:last-child{display:none}
+    .cx-depts{gap:6px}#management-panel .cx-dept{padding:7px 9px;border-radius:12px}.cx-dept .h{font-size:12px}.cx-dept small{display:none}
+    #management-panel h4{margin:8px 0 4px;font-size:12px}
+    .cx-startrack .cx-ic{width:34px;height:34px}.cx-startrack{padding:0}
+    .cx-goalrow{padding:7px 9px;margin:5px 0;border-radius:12px;gap:8px}.cx-goalrow small{display:none}.cx-goalrow b{font-size:12.5px}
+    #management-panel .cx-card{padding:8px 9px;margin:6px 0;border-radius:12px}
+    #management-panel .cx-card .cx-meta{font-size:11.5px}
+    .cx-ava{width:32px;height:32px;border-radius:11px;font-size:12px}.cx-staff{grid-template-columns:32px 1fr;gap:8px}
+    .cx-kpis{gap:5px}.cx-kpi{padding:5px 8px}.cx-kpi b{font-size:15px}
+    #management-panel button{padding:7px 9px;font-size:12.5px}
+    #management-panel .cx-card select{min-height:34px;margin:4px 0}
+    /* room panel */
+    #management-panel .room-summary{font-size:12px;margin:0 0 4px}
+    #management-panel .room-summary span{font-size:11.5px}
+    #management-panel .role-summary{display:none}
+    #management-panel .capacity-cause{font-size:12px;margin:4px 0;padding:5px 8px}
+    #management-panel .primary-action{min-height:40px!important;margin:5px 0!important}
+    #management-panel .panel-actions{gap:5px}
+    .cx-upgrades h4{margin-top:6px}
+    #management-panel .cx-upgrades .cx-card>.cx-meta,#management-panel .cx-upgrades .cx-actions small{display:none}
+    .cx-upgrades .cx-actions button{padding:6px 4px}
+    /* tutorial uses the stock HUD: keep it small too */
+    body:not(.cx-modern):not(.build-mode) .management-top{min-height:42px!important;padding:4px 8px!important}
+    body:not(.cx-modern):not(.build-mode) .hospital-heading small,body:not(.cx-modern):not(.build-mode) .mini-flow{display:none!important}
+    body:not(.cx-modern):not(.build-mode) #flow-goal{display:none!important}
+    body:not(.cx-modern):not(.build-mode) #opening-guide{padding:8px 10px!important;border-radius:16px!important}
+    body:not(.cx-modern):not(.build-mode) #opening-guide .opening-eyebrow span{display:none}
+    body:not(.cx-modern):not(.build-mode) #opening-guide strong{font-size:14px!important}
+    body:not(.cx-modern):not(.build-mode) #opening-guide p{font-size:12px!important;line-height:1.3!important;margin:3px 0 6px!important}
+    body:not(.cx-modern):not(.build-mode) #opening-guide button:not(#opening-skip){min-height:40px!important;padding:6px 10px!important}
+    body:not(.cx-modern):not(.build-mode) .management-dock{min-height:50px!important;padding:3px!important}
+    body:not(.cx-modern):not(.build-mode) .management-dock button{min-height:42px!important;font-size:11px!important}
   }
   @keyframes cxUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
-  @media (max-width:760px) and (max-height:620px){#cx-goal,#cx-alert{display:none!important}}
+  @media (max-width:760px) and (max-height:560px){#cx-goal,#cx-alert{display:none!important}}
 
   /* in-game notices sit above the dock */
   body.cx-modern.manage-mode:not(.build-mode) #build-notice{top:auto!important;left:50%!important;right:auto!important;transform:translateX(-50%);bottom:calc(max(14px,env(safe-area-inset-bottom)) + 88px)!important;max-width:min(460px,calc(100vw - 24px))!important;width:max-content;font-size:13px!important;line-height:1.35;padding:9px 16px!important;border-radius:16px!important;background:#fffdf4f2!important;color:#1f5a57!important;border:1px solid #ffffff!important;box-shadow:0 10px 26px #0a243055!important;text-align:center;z-index:11!important}
@@ -247,7 +317,7 @@
   #cx-title button.big .cx-ic{width:30px;height:30px;flex:none}
   #cx-title button.big b{font-size:17px}
   #cx-title button.primary{background:linear-gradient(145deg,#5ee6d2,#2fb8ab)!important;color:#07323a!important;box-shadow:0 8px 22px #2fb8ab55}
-  #cx-title .cx-grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:6px}
+  #cx-title .cx-grid3{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:6px}
   #cx-title .cx-grid3 button{display:grid!important;justify-items:center;gap:3px;text-align:center!important;padding:12px 4px!important;margin:0!important;min-height:0!important}
   #cx-title .cx-grid3 .cx-ic{width:26px;height:26px;color:#7be0d0}
   #cx-title .cx-grid3 b{font-size:13px}
@@ -312,7 +382,7 @@
         <button class="d-only" data-act="tab:overview" data-tab="overview" aria-label="Hospital overview">${ic("hospital")}<span>Hospital</span></button>
         <button class="m-only" data-act="more" aria-label="More">${ic("more")}<span>More</span></button>
       </nav>
-      <div id="cx-sheet" role="menu">${MORE.map(([k, i, l]) => `<button data-act="${k === "settings" ? "settings" : "tab:" + k}" data-tab="${k}">${ic(i)}<span>${l}</span></button>`).join("")}<button data-act="shift">${ic("bolt")}<span>Play shift</span></button></div>`;
+      <div id="cx-sheet" role="menu">${MORE.map(([k, i, l]) => `<button data-act="${k === "settings" ? "settings" : "tab:" + k}" data-tab="${k}">${ic(i)}<span>${l}</span></button>`).join("")}</div>`;
     while (wrap.firstChild) ctrl.ui.append(wrap.firstChild);
     const $ = (s) => ctrl.ui.querySelector(s);
     ctrl.cxEls = { hud: $("#cx-hud"), goal: $("#cx-goal"), alert: $("#cx-alert"), dock: $("#cx-dock"), sheet: $("#cx-sheet") };
@@ -330,7 +400,6 @@
       else if (act === "build") ctrl.ui.querySelector("#center-build").click();
       else if (act === "alert") ctrl.ui.querySelector("#flow-goal").click();
       else if (act === "settings") ctrl.navigate("settings");
-      else if (act === "shift") YC.startShift(ctrl);
       else if (act === "more") sheet.classList.toggle("on");
       else if (act.startsWith("tab:")) openTab(ctrl, act.slice(4));
     });
@@ -428,6 +497,7 @@
     const notStarted = !t.open && t.time === 0;
     setHTML(play, notStarted ? ic("play") + "<span>Open</span>" : t.paused ? ic("play") + "<span>Resume</span>" : ic("pause") + "<span>Pause</span>");
     play.classList.toggle("paused", !notStarted && t.paused);
+    play.classList.toggle("first", notStarted);
     play.disabled = ctrl.ui.querySelector("#hospital-open").disabled;
     setHTML(ctrl.cxEls.dock.querySelector(".cx-speed"), `${t.speed}×<small>speed</small>`);
     const tab = !ctrl.panel.hidden && ctrl.panel.dataset.context === "career" ? ctrl.cxTab : null;

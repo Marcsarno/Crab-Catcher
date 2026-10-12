@@ -824,6 +824,7 @@
   };
 
   // ---- starting a career game -------------------------------------------------------------------------
+  YC.LAYOUT_VERSION = 2; // 1 = original four-bay plan, 2 = starter lobby / concourse plan
   YC.careerStart = function () {
     const base = YC.careerLayout();
     const plain = ya();
@@ -833,6 +834,7 @@
     rec && sim.hire("pacuNurse", rec.id);
     for (const s of sim.state.staff) s.anchor && ((s.cell = { ...s.anchor }), (s.x = s.anchor.x), (s.y = s.anchor.y), (s.route = []));
     sim.activateCareer({ rep: 25 });
+    sim.state.career.layout = YC.LAYOUT_VERSION;
     sim.state.funds = 4500;
     sim.state.events = ["Career start: a furnished, staffed center ready to open. Press Open center."];
     sim.state.report = sim.newReport();

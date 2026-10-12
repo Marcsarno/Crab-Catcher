@@ -50,10 +50,6 @@
   };
 
   // Entry points: the title screen button and the Overview tab.
-  YC.startShift = function (ctrl) {
-    try {
-      ctrl?.save();
-    } catch {}
-    location.search = "?mode=shift&from=center";
-  };
+  // The shift minigame is on hold: nothing in the interface links to it.
+  YC.startShift = function () {};
 })();
